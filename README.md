@@ -2,21 +2,41 @@
 
 CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux, macOS e Windows. Il comando breve è `zlb`. Usa `http://localhost:23119/api/` con Zotero aperto. Tutte le scritture passano dall'API locale; non modifica i database SQLite e non usa zotero.org.
 
+## Installazione
+
+Servono Zotero 10 aperto, l'opzione **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** attiva e Python 3.10 o successivo. Non serve installare un'estensione `.xpi` né creare una chiave su zotero.org. Questo repository è privato: il clone richiede accesso GitHub.
+
+### Linux e macOS
+
+```bash
+gh repo clone paolovolterra/zotero-llm-bridge
+cd zotero-llm-bridge
+python3 --version
+mkdir -p "$HOME/.local/bin"
+ln -s "$PWD/zlb" "$HOME/.local/bin/zlb"
+export PATH="$HOME/.local/bin:$PATH"
+zlb status
+```
+
+Se `gh` non è installato, clonare con `git clone https://github.com/paolovolterra/zotero-llm-bridge.git` usando le proprie credenziali GitHub. Il collegamento in `~/.local/bin` si crea una sola volta; per aggiornare il programma basta `git pull` nella cartella clonata. Rendere persistente l'aggiunta al `PATH` nel profilo della propria shell, se non è già configurata.
+
+### Windows
+
+```powershell
+gh repo clone paolovolterra/zotero-llm-bridge
+cd zotero-llm-bridge
+py -3 --version
+py -3 -m pip install --user .
+zlb status
+```
+
+Se `zlb` non è riconosciuto, aggiungere al `PATH` la directory `Scripts` dell'installazione Python dell'utente. In alternativa, dalla cartella del repository si può sempre eseguire `py -3 PY\zotero_llm_bridge.py status`.
+
 ## Modello d'uso
 
 Un LLM può cercare fonti sul web, preparare un manifest e invocare i comandi del CLI. Chi utilizza il pacchetto può leggere il codice e decide quali operazioni autorizzare ed eseguire sulla propria libreria. Il CLI usa le richieste e l'autorizzazione dell'API locale di Zotero: è Zotero a creare le chiavi, registrare le schede e gestire i file importati. I controlli del CLI verificano appartenenza alla raccolta e integrità dei PDF, ma non accertano da soli che un documento sia il paper citato o che i suoi metadati siano corretti.
 
 ## Avvio
-
-Da una copia del repository, su Linux o macOS:
-
-```bash
-mkdir -p "$HOME/.local/bin"
-ln -s "$(pwd)/zlb" "$HOME/.local/bin/zlb"
-zlb --help
-```
-
-La directory `~/.local/bin` deve essere nel `PATH`. In alternativa, `python3 -m pip install --user .` installa l'entry point `zlb` definito in `pyproject.toml`. Su Windows si può usare `py -3 -m pip install --user .` e aggiungere la directory `Scripts` dell'utente al `PATH`.
 
 ```bash
 ./zlb status

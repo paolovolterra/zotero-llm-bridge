@@ -18,3 +18,4 @@
 - La prova su `PolicyIA` ha rilevato PDF autonomi che il traduttore BibTeX di Zotero non esporta da soli. Aggiunto un fallback `misc` con file e `key8`; le note autonome sono saltate e segnalate nel riepilogo.
 - Esportate dal vivo 53 voci di `PolicyIA`, tutte con `key8`; BibTeX ha letto il file senza errori, con avvisi per metadati già mancanti in Zotero.
 - Il pacchetto è stato spostato in un repository GitHub privato autonomo `paolovolterra/zotero-llm-bridge`; il repository condiviso `0000` non ne traccia più i file. Documentata l'installazione nel `PATH` via symlink o entry point Python.
+- Riscritta la sezione Installazione dal clone del repository alla verifica di `zlb status`, con prerequisiti Zotero/Python e istruzioni separate per Linux/macOS e Windows.
