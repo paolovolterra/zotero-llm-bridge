@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+zlb_source="${BASH_SOURCE[0]}"
+while [[ -L "$zlb_source" ]]; do
+  zlb_dir="$(cd -- "$(dirname -- "$zlb_source")" && pwd)"
+  zlb_source="$(readlink "$zlb_source")"
+  [[ "$zlb_source" = /* ]] || zlb_source="$zlb_dir/$zlb_source"
+done
+zlb_dir="$(cd -- "$(dirname -- "$zlb_source")" && pwd)"
+exec python3 "$zlb_dir/PY/zotero_llm_bridge.py" "$@"

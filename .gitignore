@@ -1,0 +1,6 @@
+.zotero-local-auth.json
+.zotero-local-auth.json.tmp
+.zlb-attachment-index.json
+.zlb-attachment-index.json.tmp
+__pycache__/
+*.pyc

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zotero-llm-bridge"
+version = "0.1.0"
+description = "Model-independent Zotero local API CLI"
+requires-python = ">=3.10"
+
+[project.scripts]
+zlb = "zotero_llm_bridge:main"
+
+[tool.setuptools]
+py-modules = ["zotero_llm_bridge"]
+package-dir = {"" = "PY"}
