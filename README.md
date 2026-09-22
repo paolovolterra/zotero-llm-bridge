@@ -20,6 +20,8 @@ Se un PDF non si trova o un server esterno rifiuta il download, `apply` segnala 
 
 `zlb` può modificare raccolte e schede e copiare PDF nella libreria Zotero. L'utilizzatore deve leggere il codice, controllare i comandi proposti anche da un LLM, verificare i risultati e mantenere un backup della libreria. Deve inoltre verificare identità, metadati e diritti d'uso dei documenti importati. Il programma è fornito **«così com'è»**, senza garanzie di correttezza, idoneità o assenza di errori. Nei limiti consentiti dalla legge applicabile, autori e contributori declinano responsabilità per perdite di dati, errori bibliografici o altri danni derivanti dall'uso del programma.
 
+**zlb non cancella schede, raccolte o allegati da Zotero.** Non offre un comando di cancellazione e rifiuta le richieste `DELETE` all'API locale. La cancellazione, quando necessaria, viene eseguita manualmente dall'utente nell'interfaccia di Zotero. `move` cambia soltanto l'appartenenza della scheda alle raccolte: la scheda e il suo PDF restano nella libreria.
+
 ## Licenza
 
 Il codice è distribuito con licenza [0BSD](LICENSE): si può usare, copiare, modificare e ridistribuire per qualunque scopo, anche commerciale, senza obbligo di attribuzione. La licenza include l'esclusione di garanzie e responsabilità nel suo testo originale.

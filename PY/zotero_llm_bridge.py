@@ -53,6 +53,8 @@ class Zotero:
         self.server_id: str | None = None
 
     def request(self, method: str, path: str, body: bytes | None = None, headers: dict | None = None):
+        if method.upper() == "DELETE":
+            raise ZoteroError("zlb does not delete Zotero items, collections or attachments; delete manually in Zotero")
         url = self.base + path
         request = Request(url, data=body, method=method, headers={"Accept": "application/json", **(headers or {})})
         try:
@@ -644,7 +646,7 @@ def expand_shortcut(argv):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="zlb", description="Zotero 10 local API CLI. Writes never edit SQLite directly.")
+    parser = argparse.ArgumentParser(prog="zlb", description="Zotero 10 local API CLI. Writes never edit SQLite directly; deletion is manual in Zotero.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="Check Zotero local API and authorization cache")

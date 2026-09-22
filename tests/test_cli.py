@@ -50,6 +50,10 @@ class FakeAPI:
 
 
 class CLITests(unittest.TestCase):
+    def test_delete_request_is_rejected_before_network(self):
+        with self.assertRaisesRegex(ZoteroError, "does not delete"):
+            Zotero().request("DELETE", "/users/0/items/ABCD1234")
+
     def test_direct_collection_bib_has_key8_and_unique_citekeys(self):
         api = Zotero()
         api.resolve_collection = lambda value: {"key": "ZXCV9876"}
