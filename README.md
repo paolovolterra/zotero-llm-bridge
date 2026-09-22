@@ -4,7 +4,13 @@ CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux
 
 ## Da una richiesta all'LLM alla raccolta Zotero
 
-Durante lo studio, l'utente può chiedere a un LLM di consigliare paper su un tema, cercarne i PDF online e scrivere `references.bib`. `zlb` porta i PDF reperiti nella libreria Zotero, dove l'utente può aprirli e leggerli. Gli si può chiedere, per esempio:
+Durante uno studio o una ricerca, l'utente può chiedere a un LLM di consigliare paper su un tema, cercarne i PDF online e scrivere `references.bib`. 
+
+`zlb` porta i PDF reperiti nella libreria Zotero direttamente senza download manuali.
+
+L'utente poi può aprirli, leggerli e annotarli .
+
+Ad un LLM si può chiedere, per esempio:
 
 > «Consigliami paper pertinenti a questo argomento e spiegami perché leggerli. Cerca prima i PDF già presenti in Zotero e aggiungili alla raccolta `Letture consigliate`. Per gli altri cerca PDF accessibili sul web e importali nella stessa raccolta: voglio leggerli in Zotero. Scrivi `references.bib` con `key8` e percorso dei PDF risolti. Metti all'inizio i paper che non riesci a reperire, così posso cercarli io.»
 
