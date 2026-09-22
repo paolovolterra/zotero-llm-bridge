@@ -2,6 +2,20 @@
 
 CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux, macOS e Windows. Il comando breve è `zlb`. Usa `http://localhost:23119/api/` con Zotero aperto. Tutte le scritture passano dall'API locale; non modifica i database SQLite e non usa zotero.org.
 
+## Da una richiesta all'LLM alla raccolta Zotero
+
+Un LLM può usare `zlb` come strumento operativo. Gli si può chiedere, per esempio:
+
+> «Trova i paper citati in questo documento. Cerca prima quelli già presenti in Zotero; aggiungili alla raccolta `FSFDLLM references`. Per gli altri cerca PDF accessibili sul web e importali nella stessa raccolta. Salva `references.bib` con `key8` e percorso dei PDF risolti. Metti all'inizio i riferimenti che non riesci a reperire, così posso occuparmene io.»
+
+L'LLM conduce la ricerca bibliografica e sul web con gli strumenti di cui dispone, verifica le corrispondenze e prepara un [manifest JSON](#riferimenti-e-bibtex) con titolo, DOI, chiave Zotero o `pdf_url`. `zlb` esegue la parte locale: cerca nell'intera libreria, collega alla raccolta le schede già presenti, importa i PDF nuovi tramite l'API locale e produce il BibTeX. Un esempio del passaggio finale è:
+
+```bash
+zlb apply --manifest references.json --collection "FSFDLLM references" --output references.bib
+```
+
+Se un PDF non si trova o un server esterno rifiuta il download, `apply` segnala `missing` o `error` per quel riferimento. La voce resta **all'inizio del BibTeX**, senza `key8` o percorso inventati: l'utente può procurare il PDF o correggere l'URL e riprendere dal manifest. Il CLI non effettua da solo ricerche sul web e non aggira blocchi o autorizzazioni dei siti. Se invece è il server locale di Zotero a non rispondere, occorre riaprire Zotero e ripetere il comando prima di generare il BibTeX.
+
 ## Avvertenza e responsabilità
 
 `zlb` può modificare raccolte e schede e copiare PDF nella libreria Zotero. L'utilizzatore deve leggere il codice, controllare i comandi proposti anche da un LLM, verificare i risultati e mantenere un backup della libreria. Deve inoltre verificare identità, metadati e diritti d'uso dei documenti importati. Il programma è fornito **«così com'è»**, senza garanzie di correttezza, idoneità o assenza di errori. Nei limiti consentiti dalla legge applicabile, autori e contributori declinano responsabilità per perdite di dati, errori bibliografici o altri danni derivanti dall'uso del programma.
@@ -161,6 +175,6 @@ Fornire questa guida e il comando `zlb` disponibile nel `PATH`, oppure il suo pe
 python3 -m unittest discover -s tests -v
 ```
 
-I test non richiedono Zotero e coprono il riuso di un PDF già presente in libreria e l'ordine delle voci nel BibTeX. Prima di una pubblicazione pubblica occorre scegliere una licenza e verificare il pacchetto sulle piattaforme dichiarate; finora è stato eseguito dal vivo solo su Linux.
+I test non richiedono Zotero e coprono il riuso di un PDF già presente in libreria e l'ordine delle voci nel BibTeX. Prima di una pubblicazione pubblica occorre verificare il pacchetto sulle piattaforme dichiarate; finora è stato eseguito dal vivo solo su Linux.
 
 Esempi basati su un caso d'uso reale sono in `examples/uso_20260922.md`.

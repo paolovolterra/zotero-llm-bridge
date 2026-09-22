@@ -21,3 +21,4 @@
 - Riscritta la sezione Installazione dal clone del repository alla verifica di `zlb status`, con prerequisiti Zotero/Python e istruzioni separate per Linux/macOS e Windows.
 - Inserita in apertura del README un'avvertenza su modifiche alla libreria, verifica dei comandi e dei documenti, backup, assenza di garanzie e limitazione di responsabilità nei limiti della legge applicabile. La licenza resta da scegliere prima di un rilascio pubblico.
 - Scelta la licenza 0BSD su richiesta dell'utente per la massima libertà d'uso senza obbligo di attribuzione; aggiunto `LICENSE` e aggiornato il README.
+- Portato in apertura del README il flusso guidato da un LLM: ricerca sul web, riuso dei PDF Zotero, import nella raccolta e BibTeX con i riferimenti irrisolti in testa. Esplicitati gli errori dei server esterni e il caso in cui Zotero locale non risponde; rimossa la vecchia nota che diceva di scegliere ancora una licenza.
