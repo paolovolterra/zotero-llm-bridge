@@ -20,3 +20,4 @@
 - Il pacchetto è stato spostato in un repository GitHub privato autonomo `paolovolterra/zotero-llm-bridge`; il repository condiviso `0000` non ne traccia più i file. Documentata l'installazione nel `PATH` via symlink o entry point Python.
 - Riscritta la sezione Installazione dal clone del repository alla verifica di `zlb status`, con prerequisiti Zotero/Python e istruzioni separate per Linux/macOS e Windows.
 - Inserita in apertura del README un'avvertenza su modifiche alla libreria, verifica dei comandi e dei documenti, backup, assenza di garanzie e limitazione di responsabilità nei limiti della legge applicabile. La licenza resta da scegliere prima di un rilascio pubblico.
+- Scelta la licenza 0BSD su richiesta dell'utente per la massima libertà d'uso senza obbligo di attribuzione; aggiunto `LICENSE` e aggiornato il README.

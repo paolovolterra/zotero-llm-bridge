@@ -4,7 +4,11 @@ CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux
 
 ## Avvertenza e responsabilità
 
-`zlb` può modificare raccolte e schede e copiare PDF nella libreria Zotero. L'utilizzatore deve leggere il codice, controllare i comandi proposti anche da un LLM, verificare i risultati e mantenere un backup della libreria. Deve inoltre verificare identità, metadati e diritti d'uso dei documenti importati. Il programma è fornito **«così com'è»**, senza garanzie di correttezza, idoneità o assenza di errori. Nei limiti consentiti dalla legge applicabile, autori e contributori declinano responsabilità per perdite di dati, errori bibliografici o altri danni derivanti dall'uso del programma. Questa avvertenza non sostituisce una licenza: prima di un rilascio pubblico va scelto e aggiunto un file `LICENSE` appropriato.
+`zlb` può modificare raccolte e schede e copiare PDF nella libreria Zotero. L'utilizzatore deve leggere il codice, controllare i comandi proposti anche da un LLM, verificare i risultati e mantenere un backup della libreria. Deve inoltre verificare identità, metadati e diritti d'uso dei documenti importati. Il programma è fornito **«così com'è»**, senza garanzie di correttezza, idoneità o assenza di errori. Nei limiti consentiti dalla legge applicabile, autori e contributori declinano responsabilità per perdite di dati, errori bibliografici o altri danni derivanti dall'uso del programma.
+
+## Licenza
+
+Il codice è distribuito con licenza [0BSD](LICENSE): si può usare, copiare, modificare e ridistribuire per qualunque scopo, anche commerciale, senza obbligo di attribuzione. La licenza include l'esclusione di garanzie e responsabilità nel suo testo originale.
 
 ## Installazione
 
