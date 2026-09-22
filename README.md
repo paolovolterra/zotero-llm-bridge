@@ -52,6 +52,14 @@ Il codice è distribuito con licenza [0BSD](LICENSE): si può usare, copiare, mo
 
 La versione 0.1.0 è archiviata su [Zenodo](https://doi.org/10.5281/zenodo.22900667) con DOI `10.5281/zenodo.22900667`. Il repository GitHub contiene il codice e gli aggiornamenti; il DOI identifica lo snapshot pubblicato. I metadati di citazione per GitHub sono in [CITATION.cff](CITATION.cff).
 
+SHA-256 dello ZIP `zotero-llm-bridge-v0.1.0.zip` scaricato da Zenodo:
+
+```text
+2415d629c2f428d74f9730268955753baf0648e3856b25c00647553d51e063ac
+```
+
+Verifica: `sha256sum zotero-llm-bridge-v0.1.0.zip` su Linux, `shasum -a 256 zotero-llm-bridge-v0.1.0.zip` su macOS oppure `Get-FileHash .\zotero-llm-bridge-v0.1.0.zip -Algorithm SHA256` in PowerShell. L'hash si riferisce allo ZIP di Zenodo, non al codice aggiornato su GitHub.
+
 ## Installazione
 
 Servono Zotero 10 aperto, l'opzione **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** attiva e Python 3.10 o successivo. Non serve installare un'estensione `.xpi` né creare una chiave su zotero.org. Il repository è pubblico e si può clonare senza un account GitHub.

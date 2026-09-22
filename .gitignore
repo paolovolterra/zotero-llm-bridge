@@ -4,3 +4,6 @@
 .zlb-attachment-index.json.tmp
 __pycache__/
 *.pyc
+AGENTS.md
+CLAUDE.md
+LOG.md
