@@ -11,7 +11,26 @@ Un LLM può cercare fonti sul web, preparare un manifest e invocare i comandi de
 ```bash
 ./zlb status
 ./zlb collections --parent "My papers"
+./zlb collections "My papers"
+./zlb "My papers" --top --limit 20
 ```
+
+`zlb collections "My papers"` elenca le sottoraccolte; `zlb "My papers"` elenca schede e allegati nella raccolta. Aggiungere `--top` per vedere solo le schede principali. La forma breve equivale a `zlb search --collection "My papers"`. Il nome deve essere esatto e univoco; se non lo è, usare la chiave a otto caratteri.
+
+### Esempio reale: `PolicyIA`
+
+```bash
+zlb -h
+zlb collections PolicyIA
+zlb PolicyIA --top --limit 5
+zlb search --collection PolicyIA --tag AI --top --limit 20
+zlb bib --collection PolicyIA
+zlb bib --collection PolicyIA --output PolicyIA.bib
+```
+
+`zlb collections PolicyIA` mostra le **sottoraccolte**: nella prova del 22 settembre ha restituito `[]`. `zlb PolicyIA --top --limit 5` mostra le prime cinque dei 53 item principali osservati. `zlb bib --collection PolicyIA` stampa il BibTeX della raccolta sul terminale; con `--output` lo salva nella directory corrente. L'esportazione diretta usa il traduttore BibTeX di Zotero per le schede bibliografiche, include i PDF autonomi come voci `misc` e aggiunge `key8`. Le note autonome vengono saltate e riportate nel riepilogo JSON quando si usa `--output`. Non serve un manifest per questi comandi.
+
+L'export rispecchia i metadati presenti in Zotero: se mancano autori, date o sede editoriale, il `.bib` può produrre avvisi durante la compilazione. La correzione dei metadati si fa in Zotero e poi si ripete l'esportazione. L'[API ufficiale supporta BibTeX come formato di export](https://www.zotero.org/support/dev/web_api/v3/basics).
 
 I comandi restituiscono JSON. Le letture non richiedono autorizzazione; le scritture seguono la procedura qui sotto.
 
@@ -92,7 +111,7 @@ Manifest JSON di esempio:
 ./zlb bib --manifest /path/to/references.json --collection "New collection" --output /path/to/references.bib
 ```
 
-`apply` cerca per chiave Zotero, DOI o titolo nell'intera libreria; aggiunge le schede già presenti e importa PDF locali o da URL HTTPS. Aggiorna il manifest dopo ogni importazione riuscita, così può riprendere dopo un'interruzione. `bib` legge soltanto Zotero e scrive il `.bib`, con le voci senza PDF all'inizio e `key8` e `file` per quelle risolte. Il CLI controlla la presenza del PDF, non l'identità scientifica di un URL: verificare fonte, titolo, autori, anno e DOI prima di associare il PDF e pubblicare il BibTeX.
+`apply` cerca per chiave Zotero, DOI o titolo nell'intera libreria; aggiunge le schede già presenti e importa PDF locali o da URL HTTPS. Aggiorna il manifest dopo ogni importazione riuscita, così può riprendere dopo un'interruzione. `bib` **con manifest** richiede `--output`, mette le voci senza PDF all'inizio e scrive `key8` e percorso per quelle risolte. `bib` **senza manifest** esporta direttamente la raccolta con i metadati correnti di Zotero. Il CLI controlla la presenza del PDF, non l'identità scientifica di un URL: verificare fonte, titolo, autori, anno e DOI prima di associare il PDF e pubblicare il BibTeX.
 
 ## Per altri LLM
 

@@ -526,6 +526,54 @@ def build_bib(api: Zotero, manifest: dict, collection: str, output: Path):
     return {"output": str(output), "collection": collection_key, "total": len(manifest["references"]), "with_pdf": len(present), "missing": [str(row[0]["id"]) for row in missing]}
 
 
+def export_collection_bib(api: Zotero, collection: str):
+    collection_key = api.resolve_collection(collection)["key"]
+    items = []
+    start = 0
+    while True:
+        path = f"/users/0/collections/{collection_key}/items/top?limit=100&start={start}"
+        _, headers, page = api.request("GET", path)
+        items.extend(page)
+        start += len(page)
+        if start >= int(headers["Total-Results"]):
+            break
+        if not page:
+            raise ZoteroError("Collection export stopped before the last page")
+
+    entries = []
+    used_keys = set()
+    skipped = []
+    for item in items:
+        key = item["key"]
+        kind = item["data"].get("itemType")
+        if kind == "note":
+            skipped.append(key)
+            continue
+        raw = api.get(f"/users/0/items/{key}?format=bibtex")
+        if not isinstance(raw, str):
+            raise ZoteroError(f"Zotero did not return BibTeX for {key}")
+        entry = raw.strip()
+        if not entry and kind == "attachment":
+            pdfs = api.pdf_children(item)
+            ref = {"id": key, "citekey": f"zotero{key}", "title": item["data"].get("title") or key}
+            entry = bib_entry(ref, item, pdfs[0] if pdfs else None)
+        header = re.search(r"^(@[A-Za-z]+\{)([^,]+),", entry)
+        if not header:
+            raise ZoteroError(f"Zotero returned invalid BibTeX for {key}")
+        citekey = header.group(2)
+        if citekey in used_keys:
+            citekey = f"{citekey}_{key}"
+            entry = header.group(1) + citekey + entry[header.end(2):]
+        used_keys.add(citekey)
+        closing = entry.rfind("\n}")
+        if closing < 0:
+            raise ZoteroError(f"Zotero returned incomplete BibTeX for {key}")
+        if not re.search(r"\bkey8\s*=", entry):
+            entry = entry[:closing] + f"\n\tkey8 = {{{key}}}," + entry[closing:]
+        entries.append(entry)
+    return "\n\n".join(entries) + ("\n" if entries else ""), {"collection": collection_key, "total": len(entries), "skipped_notes": skipped}
+
+
 def apply_references(api: Zotero, path: Path, collection: str, output: Path | None):
     manifest = read_manifest(path)
     collection_key = api.resolve_collection(collection)["key"]
@@ -586,12 +634,22 @@ def apply_references(api: Zotero, path: Path, collection: str, output: Path | No
     return report
 
 
+def expand_shortcut(argv):
+    args = list(argv)
+    offset = 1 if args[:1] == ["--json"] else 0
+    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "upload", "bib", "apply"}
+    if len(args) > offset and not args[offset].startswith("-") and args[offset] not in commands:
+        args[offset:offset + 1] = ["search", "--collection", args[offset]]
+    return args
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="zlb", description="Zotero 10 local API CLI. Writes never edit SQLite directly.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="Check Zotero local API and authorization cache")
     collections = sub.add_parser("collections", help="List Zotero collections")
+    collections.add_argument("parent_name", nargs="?", help="List children of this collection")
     collections.add_argument("--parent", help="Filter to children of collection key or exact name")
     search = sub.add_parser("search", help="Search library items by collection, tag, text or item type")
     search.add_argument("--collection", help="Collection key or exact name")
@@ -619,21 +677,24 @@ def main(argv=None):
     upload.add_argument("--parent-item", help="Attach PDF to an existing bibliographic item")
     upload.add_argument("--tag", action="append", default=[])
     bib = sub.add_parser("bib", help="Build BibTeX from a JSON manifest and the live collection")
-    bib.add_argument("--manifest", required=True, type=Path)
+    bib.add_argument("--manifest", type=Path, help="Optional manifest for missing-first project bibliography")
     bib.add_argument("--collection", required=True)
-    bib.add_argument("--output", required=True, type=Path)
+    bib.add_argument("--output", type=Path, help="Write BibTeX to a file; otherwise print to stdout")
     apply = sub.add_parser("apply", help="Add/import references from a JSON manifest, then optionally build BibTeX")
     apply.add_argument("--manifest", required=True, type=Path)
     apply.add_argument("--collection", required=True)
     apply.add_argument("--output", type=Path)
-    args = parser.parse_args(argv)
+    args = parser.parse_args(expand_shortcut(sys.argv[1:] if argv is None else argv))
     api = Zotero()
     try:
         headers = api.connect()
         if args.command == "status":
             result = {"version": headers.get("X-Zotero-Version"), "server_id": api.server_id, "api_version": headers.get("Zotero-API-Version"), "remembered_authorization": bool(api._cached_key())}
         elif args.command == "collections":
-            endpoint = f"/users/0/collections/{api.resolve_collection(args.parent)['key']}/collections" if args.parent else "/users/0/collections"
+            if args.parent and args.parent_name:
+                parser.error("Use either a collection name or --parent, not both")
+            parent = args.parent or args.parent_name
+            endpoint = f"/users/0/collections/{api.resolve_collection(parent)['key']}/collections" if parent else "/users/0/collections"
             result = [{"key8": x["key"], "name": x["data"]["name"], "parent": x["data"].get("parentCollection")} for x in api.get(endpoint)]
         elif args.command == "search":
             result = api.search_items(args.collection, args.tag, args.q, args.qmode, args.item_type, args.top, args.limit, args.start)
@@ -647,7 +708,21 @@ def main(argv=None):
         elif args.command == "upload":
             result = api.upload_pdf(args.file, args.collection, args.title, args.tag, args.parent_item)
         elif args.command == "bib":
-            result = build_bib(api, read_manifest(args.manifest), args.collection, args.output)
+            if args.manifest:
+                if not args.output:
+                    parser.error("--output is required when --manifest is used")
+                result = build_bib(api, read_manifest(args.manifest), args.collection, args.output)
+            else:
+                bib_text, result = export_collection_bib(api, args.collection)
+                if args.output:
+                    args.output.parent.mkdir(parents=True, exist_ok=True)
+                    tmp = args.output.with_name(args.output.name + ".tmp")
+                    tmp.write_text(bib_text)
+                    os.replace(tmp, args.output)
+                    result["output"] = str(args.output)
+                else:
+                    sys.stdout.write(bib_text)
+                    return 0
         else:
             result = apply_references(api, args.manifest, args.collection, args.output)
         if args.json or isinstance(result, (dict, list)):

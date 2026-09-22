@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "PY"))
 import zotero_llm_bridge
-from zotero_llm_bridge import Zotero, ZoteroError, apply_references, build_bib
+from zotero_llm_bridge import Zotero, ZoteroError, apply_references, build_bib, expand_shortcut, export_collection_bib
 
 
 class FakeAPI:
@@ -50,6 +50,44 @@ class FakeAPI:
 
 
 class CLITests(unittest.TestCase):
+    def test_direct_collection_bib_has_key8_and_unique_citekeys(self):
+        api = Zotero()
+        api.resolve_collection = lambda value: {"key": "ZXCV9876"}
+        api.request = lambda method, path: (200, {"Total-Results": "2"}, [
+            {"key": "ABCD1234", "data": {"itemType": "journalArticle"}},
+            {"key": "EFGH5678", "data": {"itemType": "journalArticle"}}])
+        api.get = lambda path: "@article{same,\n\ttitle = {Paper},\n}"
+        bib, report = export_collection_bib(api, "PolicyIA")
+        self.assertEqual(report["total"], 2)
+        self.assertIn("@article{same,", bib)
+        self.assertIn("@article{same_EFGH5678,", bib)
+        self.assertIn("key8 = {ABCD1234}", bib)
+        self.assertIn("key8 = {EFGH5678}", bib)
+
+    def test_direct_bib_includes_standalone_pdf_attachment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pdf = Path(directory) / "paper.pdf"
+            pdf.write_bytes(b"%PDF-1.4\n")
+            attachment = {"key": "ABCD1234", "data": {
+                "itemType": "attachment", "title": "Standalone paper",
+                "contentType": "application/pdf"},
+                "links": {"enclosure": {"href": pdf.as_uri()}}}
+            api = Zotero()
+            api.resolve_collection = lambda value: {"key": "ZXCV9876"}
+            api.request = lambda method, path: (200, {"Total-Results": "1"}, [attachment])
+            api.get = lambda path: "\n\n"
+            bib, report = export_collection_bib(api, "PolicyIA")
+            self.assertEqual(report["total"], 1)
+            self.assertIn("@misc{zoteroABCD1234,", bib)
+            self.assertIn(str(pdf), bib)
+            self.assertIn("key8", bib)
+
+    def test_collection_name_shortcut(self):
+        self.assertEqual(expand_shortcut(["PolicyIA"]), ["search", "--collection", "PolicyIA"])
+        self.assertEqual(expand_shortcut(["--json", "PolicyIA", "--tag", "AI"]),
+                         ["--json", "search", "--collection", "PolicyIA", "--tag", "AI"])
+        self.assertEqual(expand_shortcut(["collections", "PolicyIA"]), ["collections", "PolicyIA"])
+
     def test_move_is_idempotent_after_first_move(self):
         api = Zotero()
         api.resolve_collection = lambda value: {"key": "SOURCE12" if value == "source" else "TARGET34"}

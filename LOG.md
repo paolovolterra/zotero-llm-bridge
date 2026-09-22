@@ -13,3 +13,7 @@
 - Scelto `zlb` come comando breve e `zotero-llm-bridge` come nome del progetto. Preparato il pacchetto per un repository Git autonomo.
 - Documentati prompt di autorizzazione Zotero, scelte Allow/Always Allow/Deny, cache locale della chiave, rinnovo su `401`, revoca e significato limitato di `status`.
 - Reso `move` idempotente quando la scheda è già nella destinazione. Prima dell'upload, confronto globale dei PDF tramite indice MD5 costruito con l'API locale e verifica SHA-256 del file trovato; cache aggiornata per versione della libreria. I metadati restano gestiti nel client Zotero.
+- Aggiunte le scorciatoie richieste dall'uso reale: `zlb NOME_RACCOLTA` cerca gli item e `zlb collections NOME_RACCOLTA` elenca le sottoraccolte. Conservati i flag espliciti per script.
+- Aggiunto `zlb bib --collection NOME` senza manifest: esporta tramite il traduttore BibTeX di Zotero, aggiunge `key8` a ogni voce e stampa su stdout o salva con `--output`. Documentati nella guida tutti i comandi provati dall'utente con `PolicyIA`.
+- La prova su `PolicyIA` ha rilevato PDF autonomi che il traduttore BibTeX di Zotero non esporta da soli. Aggiunto un fallback `misc` con file e `key8`; le note autonome sono saltate e segnalate nel riepilogo.
+- Esportate dal vivo 53 voci di `PolicyIA`, tutte con `key8`; BibTeX ha letto il file senza errori, con avvisi per metadati già mancanti in Zotero.
