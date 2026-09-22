@@ -2,6 +2,10 @@
 
 CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux, macOS e Windows. Il comando breve è `zlb`. Usa `http://localhost:23119/api/` con Zotero aperto. Tutte le scritture passano dall'API locale; non modifica i database SQLite e non usa zotero.org.
 
+## Avvertenza e responsabilità
+
+`zlb` può modificare raccolte e schede e copiare PDF nella libreria Zotero. L'utilizzatore deve leggere il codice, controllare i comandi proposti anche da un LLM, verificare i risultati e mantenere un backup della libreria. Deve inoltre verificare identità, metadati e diritti d'uso dei documenti importati. Il programma è fornito **«così com'è»**, senza garanzie di correttezza, idoneità o assenza di errori. Nei limiti consentiti dalla legge applicabile, autori e contributori declinano responsabilità per perdite di dati, errori bibliografici o altri danni derivanti dall'uso del programma. Questa avvertenza non sostituisce una licenza: prima di un rilascio pubblico va scelto e aggiunto un file `LICENSE` appropriato.
+
 ## Installazione
 
 Servono Zotero 10 aperto, l'opzione **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** attiva e Python 3.10 o successivo. Non serve installare un'estensione `.xpi` né creare una chiave su zotero.org. Questo repository è privato: il clone richiede accesso GitHub.
