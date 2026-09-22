@@ -4,28 +4,30 @@ CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux
 
 ## Da una richiesta all'LLM alla raccolta Zotero
 
-Un LLM può usare `zlb` come strumento operativo. Gli si può chiedere, per esempio:
+Durante lo studio, l'utente può chiedere a un LLM di consigliare paper su un tema, cercarne i PDF online e scrivere `references.bib`. `zlb` porta i PDF reperiti nella libreria Zotero, dove l'utente può aprirli e leggerli. Gli si può chiedere, per esempio:
 
-> «Trova i paper citati in questo documento. Cerca prima quelli già presenti in Zotero; aggiungili alla raccolta `FSFDLLM references`. Per gli altri cerca PDF accessibili sul web e importali nella stessa raccolta. Salva `references.bib` con `key8` e percorso dei PDF risolti. Metti all'inizio i riferimenti che non riesci a reperire, così posso occuparmene io.»
+> «Consigliami paper pertinenti a questo argomento e spiegami perché leggerli. Cerca prima i PDF già presenti in Zotero e aggiungili alla raccolta `Letture consigliate`. Per gli altri cerca PDF accessibili sul web e importali nella stessa raccolta: voglio leggerli in Zotero. Scrivi `references.bib` con `key8` e percorso dei PDF risolti. Metti all'inizio i paper che non riesci a reperire, così posso cercarli io.»
 
 ```mermaid
 flowchart LR
-    A["Richiesta dell'utente"] --> B["LLM: cerca fonti e prepara il manifest"]
+    A["Argomento di studio"] --> B["LLM: consiglia paper e prepara il manifest"]
     B --> C["zlb apply"]
     C --> D{"PDF già in Zotero?"}
     D -->|Sì| E["Aggiunge la scheda alla raccolta"]
     D -->|No, URL disponibile| F["Importa il PDF tramite API locale"]
     D -->|Non reperibile| G["Segnala il riferimento irrisolto"]
     F -->|Server esterno blocca il download| G
-    E --> H["BibTeX: key8 e percorso del PDF"]
+    E --> H["Utente: apre e legge i PDF in Zotero"]
     F --> H
+    H --> J["BibTeX: key8 e percorso del PDF"]
     G --> I["BibTeX: riferimento in testa per l'utente"]
 ```
 
-L'LLM conduce la ricerca bibliografica e sul web con gli strumenti di cui dispone, verifica le corrispondenze e prepara un [manifest JSON](#riferimenti-e-bibtex) con titolo, DOI, chiave Zotero o `pdf_url`. `zlb` esegue la parte locale: cerca nell'intera libreria, collega alla raccolta le schede già presenti, importa i PDF nuovi tramite l'API locale e produce il BibTeX. Un esempio del passaggio finale è:
+L'LLM conduce la ricerca bibliografica e sul web con gli strumenti di cui dispone, verifica le corrispondenze e prepara un [manifest JSON](#riferimenti-e-bibtex) con titolo, DOI, chiave Zotero o `pdf_url`. `zlb` esegue la parte locale: cerca nell'intera libreria, collega alla raccolta le schede già presenti, importa i PDF nuovi tramite l'API locale e produce il BibTeX. L'utente apre i PDF in Zotero per leggerli e valutare i suggerimenti. Un esempio del passaggio finale è:
 
 ```bash
-zlb apply --manifest references.json --collection "FSFDLLM references" --output references.bib
+zlb ensure-collection --name "Letture consigliate"
+zlb apply --manifest references.json --collection "Letture consigliate" --output references.bib
 ```
 
 Se un PDF non si trova o un server esterno rifiuta il download, `apply` segnala `missing` o `error` per quel riferimento. La voce resta **all'inizio del BibTeX**, senza `key8` o percorso inventati: l'utente può procurare il PDF o correggere l'URL e riprendere dal manifest. Il CLI non effettua da solo ricerche sul web e non aggira blocchi o autorizzazioni dei siti. Se invece è il server locale di Zotero a non rispondere, occorre riaprire Zotero e ripetere il comando prima di generare il BibTeX.
@@ -39,6 +41,10 @@ Se un PDF non si trova o un server esterno rifiuta il download, `apply` segnala 
 ## Licenza
 
 Il codice è distribuito con licenza [0BSD](LICENSE): si può usare, copiare, modificare e ridistribuire per qualunque scopo, anche commerciale, senza obbligo di attribuzione. La licenza include l'esclusione di garanzie e responsabilità nel suo testo originale.
+
+## Citazione e archivio
+
+La versione 0.1.0 è archiviata su [Zenodo](https://doi.org/10.5281/zenodo.22900667) con DOI `10.5281/zenodo.22900667`. Il repository GitHub contiene il codice e gli aggiornamenti; il DOI identifica lo snapshot pubblicato. I metadati di citazione per GitHub sono in [CITATION.cff](CITATION.cff).
 
 ## Installazione
 

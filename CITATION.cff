@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the archived version."
+title: "ZoteroLLMBridge (zlb): local Zotero API CLI for LLM-assisted bibliography workflows"
+type: software
+authors:
+  - family-names: Volterra
+    given-names: Paolo
+    orcid: "https://orcid.org/0009-0004-2229-7519"
+repository-code: "https://github.com/paolovolterra/zotero-llm-bridge"
+version: 0.1.0
+date-released: 2026-09-22
+doi: 10.5281/zenodo.22900667
+license: 0BSD
