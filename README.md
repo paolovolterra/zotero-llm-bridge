@@ -8,6 +8,20 @@ Un LLM può usare `zlb` come strumento operativo. Gli si può chiedere, per esem
 
 > «Trova i paper citati in questo documento. Cerca prima quelli già presenti in Zotero; aggiungili alla raccolta `FSFDLLM references`. Per gli altri cerca PDF accessibili sul web e importali nella stessa raccolta. Salva `references.bib` con `key8` e percorso dei PDF risolti. Metti all'inizio i riferimenti che non riesci a reperire, così posso occuparmene io.»
 
+```mermaid
+flowchart LR
+    A["Richiesta dell'utente"] --> B["LLM: cerca fonti e prepara il manifest"]
+    B --> C["zlb apply"]
+    C --> D{"PDF già in Zotero?"}
+    D -->|Sì| E["Aggiunge la scheda alla raccolta"]
+    D -->|No, URL disponibile| F["Importa il PDF tramite API locale"]
+    D -->|Non reperibile| G["Segnala il riferimento irrisolto"]
+    F -->|Server esterno blocca il download| G
+    E --> H["BibTeX: key8 e percorso del PDF"]
+    F --> H
+    G --> I["BibTeX: riferimento in testa per l'utente"]
+```
+
 L'LLM conduce la ricerca bibliografica e sul web con gli strumenti di cui dispone, verifica le corrispondenze e prepara un [manifest JSON](#riferimenti-e-bibtex) con titolo, DOI, chiave Zotero o `pdf_url`. `zlb` esegue la parte locale: cerca nell'intera libreria, collega alla raccolta le schede già presenti, importa i PDF nuovi tramite l'API locale e produce il BibTeX. Un esempio del passaggio finale è:
 
 ```bash
