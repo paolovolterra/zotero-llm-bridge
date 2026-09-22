@@ -17,3 +17,4 @@
 - Aggiunto `zlb bib --collection NOME` senza manifest: esporta tramite il traduttore BibTeX di Zotero, aggiunge `key8` a ogni voce e stampa su stdout o salva con `--output`. Documentati nella guida tutti i comandi provati dall'utente con `PolicyIA`.
 - La prova su `PolicyIA` ha rilevato PDF autonomi che il traduttore BibTeX di Zotero non esporta da soli. Aggiunto un fallback `misc` con file e `key8`; le note autonome sono saltate e segnalate nel riepilogo.
 - Esportate dal vivo 53 voci di `PolicyIA`, tutte con `key8`; BibTeX ha letto il file senza errori, con avvisi per metadati già mancanti in Zotero.
+- Il pacchetto è stato spostato in un repository GitHub privato autonomo `paolovolterra/zotero-llm-bridge`; il repository condiviso `0000` non ne traccia più i file. Documentata l'installazione nel `PATH` via symlink o entry point Python.

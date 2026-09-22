@@ -8,6 +8,16 @@ Un LLM può cercare fonti sul web, preparare un manifest e invocare i comandi de
 
 ## Avvio
 
+Da una copia del repository, su Linux o macOS:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+ln -s "$(pwd)/zlb" "$HOME/.local/bin/zlb"
+zlb --help
+```
+
+La directory `~/.local/bin` deve essere nel `PATH`. In alternativa, `python3 -m pip install --user .` installa l'entry point `zlb` definito in `pyproject.toml`. Su Windows si può usare `py -3 -m pip install --user .` e aggiungere la directory `Scripts` dell'utente al `PATH`.
+
 ```bash
 ./zlb status
 ./zlb collections --parent "My papers"
