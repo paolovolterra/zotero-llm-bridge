@@ -42,12 +42,12 @@ Il codice è distribuito con licenza [0BSD](LICENSE): si può usare, copiare, mo
 
 ## Installazione
 
-Servono Zotero 10 aperto, l'opzione **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** attiva e Python 3.10 o successivo. Non serve installare un'estensione `.xpi` né creare una chiave su zotero.org. Questo repository è privato: il clone richiede accesso GitHub.
+Servono Zotero 10 aperto, l'opzione **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** attiva e Python 3.10 o successivo. Non serve installare un'estensione `.xpi` né creare una chiave su zotero.org. Il repository è pubblico e si può clonare senza un account GitHub.
 
 ### Linux e macOS
 
 ```bash
-gh repo clone paolovolterra/zotero-llm-bridge
+git clone https://github.com/paolovolterra/zotero-llm-bridge.git
 cd zotero-llm-bridge
 python3 --version
 mkdir -p "$HOME/.local/bin"
@@ -56,12 +56,12 @@ export PATH="$HOME/.local/bin:$PATH"
 zlb status
 ```
 
-Se `gh` non è installato, clonare con `git clone https://github.com/paolovolterra/zotero-llm-bridge.git` usando le proprie credenziali GitHub. Il collegamento in `~/.local/bin` si crea una sola volta; per aggiornare il programma basta `git pull` nella cartella clonata. Rendere persistente l'aggiunta al `PATH` nel profilo della propria shell, se non è già configurata.
+Il clone pubblico non richiede credenziali GitHub. Il collegamento in `~/.local/bin` si crea una sola volta; per aggiornare il programma basta `git pull` nella cartella clonata. Rendere persistente l'aggiunta al `PATH` nel profilo della propria shell, se non è già configurata.
 
 ### Windows
 
 ```powershell
-gh repo clone paolovolterra/zotero-llm-bridge
+git clone https://github.com/paolovolterra/zotero-llm-bridge.git
 cd zotero-llm-bridge
 py -3 --version
 py -3 -m pip install --user .
@@ -72,7 +72,7 @@ Se `zlb` non è riconosciuto, aggiungere al `PATH` la directory `Scripts` dell'i
 
 ### Da un archivio del codice
 
-Se si dispone dello ZIP del codice, estrarlo e aprire un terminale nella cartella `zotero-llm-bridge-v0.1.0`. Su Linux/macOS eseguire `./zlb status`; su Windows eseguire `py -3 PY\zotero_llm_bridge.py status` oppure `py -3 -m pip install --user .` e poi `zlb status`. L'archivio contiene la stessa versione del CLI senza richiedere accesso al repository GitHub privato.
+Se si dispone dello ZIP del codice, estrarlo e aprire un terminale nella cartella `zotero-llm-bridge-v0.1.0`. Su Linux/macOS eseguire `./zlb status`; su Windows eseguire `py -3 PY\zotero_llm_bridge.py status` oppure `py -3 -m pip install --user .` e poi `zlb status`. L'archivio contiene una copia autonoma del CLI.
 
 ## Modello d'uso
 
