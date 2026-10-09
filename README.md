@@ -161,9 +161,12 @@ Il flusso di ricerca può combinare i due livelli: prima restringere per raccolt
 ./zlb ensure-collection --parent "My papers" --name "New collection"
 ./zlb add --collection "New collection" ABCD1234
 ./zlb move --source "My papers" --target "New collection" ABCD1234
+./zlb tag --tag Draghi --tag EPIC ABCD1234 EFGH5678
 ```
 
 `add` conserva le altre appartenenze. `move` toglie la scheda dalla raccolta sorgente e la aggiunge alla destinazione. La chiave può riferirsi anche a un allegato: il comando risale alla scheda madre. Le operazioni sono idempotenti e verificano il risultato via API.
+
+`tag` aggiunge uno o più tag (`--tag` ripetibile) alle chiavi indicate, così come sono (scheda o allegato), senza togliere i tag esistenti; i tag già presenti sono saltati e il risultato è verificato via API. zlb non rimuove tag: la rimozione si fa a mano in Zotero.
 
 ## PDF
 

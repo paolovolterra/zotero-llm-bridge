@@ -50,6 +50,30 @@ class FakeAPI:
 
 
 class CLITests(unittest.TestCase):
+    def test_add_tags_keeps_existing_and_skips_present(self):
+        store = {
+            "ABCD1234": {"key": "ABCD1234", "data": {"version": 3, "tags": [{"tag": "Old"}]}},
+            "EFGH5678": {"key": "EFGH5678", "data": {"version": 5, "tags": [{"tag": "New"}]}},
+        }
+        posts = []
+        api = Zotero()
+        api.item = lambda key: store[key]
+
+        def post(path, body, content_type):
+            updates = json.loads(body)
+            posts.append(updates)
+            for update in updates:
+                store[update["key"]]["data"]["tags"] = update["tags"]
+            return {"success": {str(i): u["key"] for i, u in enumerate(updates)}, "failed": {}}
+
+        api.post = post
+        result = api.add_tags(["ABCD1234", "EFGH5678"], ["New", " ", "New"])
+        self.assertEqual(result["changed"], 1)
+        self.assertEqual(posts, [[{"key": "ABCD1234", "version": 3, "tags": [{"tag": "Old"}, {"tag": "New"}]}]])
+        self.assertEqual(api.add_tags(["ABCD1234"], ["New"])["changed"], 0)
+        with self.assertRaisesRegex(ZoteroError, "non-empty"):
+            api.add_tags(["ABCD1234"], [" "])
+
     def test_delete_request_is_rejected_before_network(self):
         with self.assertRaisesRegex(ZoteroError, "does not delete"):
             Zotero().request("DELETE", "/users/0/items/ABCD1234")

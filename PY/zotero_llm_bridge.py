@@ -200,6 +200,28 @@ class Zotero:
                 raise ZoteroError(f"Membership verification failed for {key}")
         return {"collection": target_key, "items": list(items), "changed": len(updates)}
 
+    def add_tags(self, keys: list[str], tags: list[str]):
+        tags = list(dict.fromkeys(tag.strip() for tag in tags if tag.strip()))
+        if not tags:
+            raise ZoteroError("Specify at least one non-empty --tag")
+        items = {key: self.item(key) for key in keys}
+        updates = []
+        for key, item in items.items():
+            current = list(item["data"].get("tags", []))
+            present = {tag["tag"] for tag in current}
+            missing = [{"tag": tag} for tag in tags if tag not in present]
+            if missing:
+                updates.append({"key": key, "version": item["data"]["version"], "tags": current + missing})
+        if updates:
+            result = self.post("/users/0/items", json.dumps(updates).encode(), "application/json")
+            if result.get("failed") or len(result.get("success", {})) != len(updates):
+                raise ZoteroError(f"Tag update failed: {result}")
+        for key in items:
+            present = {tag["tag"] for tag in self.item(key)["data"].get("tags", [])}
+            if not set(tags) <= present:
+                raise ZoteroError(f"Tag verification failed for {key}")
+        return {"tags": tags, "items": list(items), "changed": len(updates)}
+
     def collection_items(self, collection_key: str):
         return self.get(f"/users/0/collections/{collection_key}/items?limit=1000")
 
@@ -639,7 +661,7 @@ def apply_references(api: Zotero, path: Path, collection: str, output: Path | No
 def expand_shortcut(argv):
     args = list(argv)
     offset = 1 if args[:1] == ["--json"] else 0
-    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "upload", "bib", "apply"}
+    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "tag", "upload", "bib", "apply"}
     if len(args) > offset and not args[offset].startswith("-") and args[offset] not in commands:
         args[offset:offset + 1] = ["search", "--collection", args[offset]]
     return args
@@ -672,6 +694,9 @@ def main(argv=None):
     move.add_argument("--source", required=True)
     move.add_argument("--target", required=True)
     move.add_argument("items", nargs="+")
+    tag = sub.add_parser("tag", help="Add tags to existing items without removing other tags")
+    tag.add_argument("--tag", action="append", required=True, help="Tag to add; repeat for several")
+    tag.add_argument("items", nargs="+")
     upload = sub.add_parser("upload", help="Copy one PDF into Zotero while preserving the source")
     upload.add_argument("--file", required=True, type=Path)
     upload.add_argument("--collection", required=True)
@@ -707,6 +732,8 @@ def main(argv=None):
             result = api.change_membership(args.items, args.collection)
         elif args.command == "move":
             result = api.change_membership(args.items, args.target, args.source)
+        elif args.command == "tag":
+            result = api.add_tags(args.items, args.tag)
         elif args.command == "upload":
             result = api.upload_pdf(args.file, args.collection, args.title, args.tag, args.parent_item)
         elif args.command == "bib":
