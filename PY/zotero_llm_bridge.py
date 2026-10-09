@@ -448,6 +448,163 @@ def attachment_path(item):
     return path
 
 
+OLLAMA = os.environ.get("ZLB_OLLAMA_URL", "http://localhost:11434")
+SCREEN_MODEL = os.environ.get("ZLB_SCREEN_MODEL", "qwen3.8:27b-iq3")
+
+
+def attachment_text(item):
+    """Full text of an attachment: Zotero's cache, then pdftotext, then stripped HTML."""
+    try:
+        path = attachment_path(item)
+    except ZoteroError:
+        return ""
+    if path is None:
+        return ""
+    cache = path.parent / ".zotero-ft-cache"
+    if cache.is_file():
+        return cache.read_text(errors="replace")
+    if path.suffix.lower() == ".pdf":
+        try:
+            return subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True, timeout=300).stdout
+        except (OSError, subprocess.SubprocessError):
+            return ""
+    if path.suffix.lower() in {".html", ".htm", ".txt", ".md"}:
+        return re.sub(r"<[^>]+>", " ", path.read_text(errors="replace"))
+    return ""
+
+
+def text_windows(text: str, terms: list[str], phrases: list[str], width: int = 350, limit: int = 4):
+    """Merged windows around case-sensitive whole-word terms and case-insensitive phrases."""
+    text = re.sub(r"\s+", " ", text)
+    patterns = [rf"\b{re.escape(t)}\b" for t in terms] + [rf"(?i:{re.escape(p)})" for p in phrases]
+    if not patterns:
+        return [], 0
+    spans = []
+    for match in sorted(re.finditer("|".join(patterns), text), key=lambda m: m.start()):
+        start, end = max(0, match.start() - width), match.end() + width
+        if spans and start <= spans[-1][1]:
+            spans[-1][1] = max(spans[-1][1], end)
+        else:
+            spans.append([start, end])
+    return [text[a:b] for a, b in spans[:limit]], len(spans)
+
+
+def ollama_judge(about: str, snippets: list[str], model: str = SCREEN_MODEL):
+    parsed = urlparse(OLLAMA)
+    if parsed.hostname not in {"localhost", "127.0.0.1"}:
+        raise ZoteroError("zlb screen only uses a local Ollama (localhost); documents must not leave the machine")
+    prompt = (f"Do these excerpts really refer to: {about}?\n"
+              "Ignore homonyms and other meanings of the same words. "
+              'Answer only JSON: {"match": true|false, "reason": "<max 20 words>"}\n\n' + "\n---\n".join(snippets))
+    body = json.dumps({"model": model, "prompt": prompt, "stream": False, "format": "json", "think": False,
+                       "options": {"temperature": 0, "num_ctx": 8192}}).encode()
+    request = Request(OLLAMA.rstrip("/") + "/api/generate", data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urlopen(request, timeout=600) as response:
+            answer = json.loads(json.loads(response.read())["response"])
+    except (URLError, ValueError, KeyError) as exc:
+        raise ZoteroError(f"Local model {model} unavailable or invalid answer: {exc}") from exc
+    return bool(answer.get("match")), str(answer.get("reason", ""))[:300]
+
+
+def screen_items(api: Zotero, query: str, about: str, terms: list[str], phrases: list[str],
+                 collection: str | None = None, qmode: str = "everything", model: str = SCREEN_MODEL,
+                 use_llm: bool = True, width: int = 350, max_windows: int = 4, judge=None, progress=None):
+    """Zotero full-text search, then text windows, then a local-model verdict per attachment.
+
+    Phrase hits are deterministic matches; the local model judges only the remaining term hits.
+    """
+    judge = judge or ollama_judge
+    items, start = [], 0
+    while True:
+        page = api.search_items(collection, None, query, qmode, None, False, 100, start)
+        items += page["items"]
+        start += 100
+        if start >= (page["total"] or 0) or not page["items"]:
+            break
+    phrase_re = re.compile("|".join(re.escape(p) for p in phrases), re.I) if phrases else None
+    results = []
+    for found in items:
+        record = {"key8": found["key8"], "parent_item": found.get("parent_item"), "item_type": found["item_type"],
+                  "title": found["title"], "tags": found["tags"]}
+        if found["item_type"] != "attachment":
+            record["status"] = "not-attachment"
+        else:
+            text = attachment_text(api.item(found["key8"]))
+            snippets, count = text_windows(text, terms, phrases, width, max_windows)
+            record["windows"] = count
+            record["snippets"] = snippets
+            if not text:
+                record["status"] = "no-text"
+            elif phrase_re and phrase_re.search(text):
+                record["status"] = "phrase"
+            elif not snippets:
+                record["status"] = "no-term"
+            elif use_llm:
+                record["status"] = "llm"
+                record["model"] = model
+                try:
+                    record["llm_match"], record["llm_reason"] = judge(about, snippets, model)
+                except ZoteroError as exc:
+                    record["status"], record["llm_reason"] = "llm-error", str(exc)
+            else:
+                record["status"] = "to-judge"
+        if progress:
+            progress(record)
+        results.append(record)
+    counts = {}
+    for record in results:
+        key = record["status"] + ("-yes" if record.get("llm_match") else "-no" if record["status"] == "llm" else "")
+        counts[key] = counts.get(key, 0) + 1
+    return {"query": query, "qmode": qmode, "collection": collection, "about": about, "terms": terms,
+            "phrases": phrases, "model": model if use_llm else None, "total": len(results), "counts": counts,
+            "results": results}
+
+
+def blind_snippets(screen: dict):
+    """Snippets for a second judge, without the local model's verdicts."""
+    keep = ("key8", "parent_item", "title", "status", "snippets")
+    rows = [{k: r.get(k) for k in keep} for r in screen["results"] if r["status"] in {"llm", "llm-error", "to-judge", "phrase"}]
+    return {"about": screen["about"], "instructions": 'Write {"KEY8": {"match": true|false, "reason": "..."}} for each item.',
+            "items": rows}
+
+
+def compare_verdicts(screen: dict, verdicts: dict):
+    """Compare the local model (plus phrase hits) with another judge's verdicts."""
+    rows = {"agree_yes": [], "agree_no": [], "only_local": [], "only_other": [], "unjudged": []}
+    for record in screen["results"]:
+        if record["status"] not in {"llm", "phrase", "llm-error", "to-judge"}:
+            continue
+        key = record["key8"]
+        local = True if record["status"] == "phrase" else record.get("llm_match")
+        other = verdicts.get(key)
+        other = other.get("match") if isinstance(other, dict) else other
+        row = {"key8": key, "parent_item": record.get("parent_item"), "title": record["title"], "status": record["status"],
+               "local_reason": record.get("llm_reason"),
+               "other_reason": verdicts[key].get("reason") if isinstance(verdicts.get(key), dict) else None}
+        if other is None or local is None:
+            rows["unjudged"].append(row)
+        elif local and other:
+            rows["agree_yes"].append(row)
+        elif not local and not other:
+            rows["agree_no"].append(row)
+        elif local:
+            rows["only_local"].append(row)
+        else:
+            rows["only_other"].append(row)
+    judged = sum(len(rows[k]) for k in ("agree_yes", "agree_no", "only_local", "only_other"))
+    agree = len(rows["agree_yes"]) + len(rows["agree_no"])
+    return {"about": screen["about"], "model": screen.get("model"), "judged": judged, "agreement": round(agree / judged, 3) if judged else None,
+            "counts": {k: len(v) for k, v in rows.items()}, **rows}
+
+
+def write_json(path: Path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    os.replace(tmp, path)
+
+
 def normalize(value: str):
     return re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
 
@@ -661,7 +818,7 @@ def apply_references(api: Zotero, path: Path, collection: str, output: Path | No
 def expand_shortcut(argv):
     args = list(argv)
     offset = 1 if args[:1] == ["--json"] else 0
-    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "tag", "upload", "bib", "apply"}
+    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "tag", "screen", "compare", "upload", "bib", "apply"}
     if len(args) > offset and not args[offset].startswith("-") and args[offset] not in commands:
         args[offset:offset + 1] = ["search", "--collection", args[offset]]
     return args
@@ -697,6 +854,21 @@ def main(argv=None):
     tag = sub.add_parser("tag", help="Add tags to existing items without removing other tags")
     tag.add_argument("--tag", action="append", required=True, help="Tag to add; repeat for several")
     tag.add_argument("items", nargs="+")
+    screen = sub.add_parser("screen", help="Full-text search, then a local LLM (Ollama) judges each hit; output JSON")
+    screen.add_argument("--q", required=True, help="Zotero full-text query")
+    screen.add_argument("--about", required=True, help="What a true hit refers to, in plain words")
+    screen.add_argument("--term", action="append", default=[], help="Case-sensitive whole word to inspect; repeat")
+    screen.add_argument("--phrase", action="append", default=[], help="Case-insensitive phrase that counts as a sure hit; repeat")
+    screen.add_argument("--collection", help="Restrict to a collection key or exact name")
+    screen.add_argument("--qmode", choices=("titleCreatorYear", "everything"), default="everything")
+    screen.add_argument("--model", default=SCREEN_MODEL, help="Local Ollama model (env ZLB_SCREEN_MODEL)")
+    screen.add_argument("--no-llm", action="store_true", help="Only extract snippets; no local model")
+    screen.add_argument("--output", type=Path, required=True, help="Full JSON with local verdicts")
+    screen.add_argument("--snippets", type=Path, help="Blind JSON for a second judge, without local verdicts")
+    compare = sub.add_parser("compare", help="Compare a screen output with another judge's verdicts")
+    compare.add_argument("--screen", type=Path, required=True)
+    compare.add_argument("--verdicts", type=Path, required=True, help='JSON {"KEY8": {"match": bool, "reason": str}}')
+    compare.add_argument("--output", type=Path)
     upload = sub.add_parser("upload", help="Copy one PDF into Zotero while preserving the source")
     upload.add_argument("--file", required=True, type=Path)
     upload.add_argument("--collection", required=True)
@@ -734,6 +906,21 @@ def main(argv=None):
             result = api.change_membership(args.items, args.target, args.source)
         elif args.command == "tag":
             result = api.add_tags(args.items, args.tag)
+        elif args.command == "screen":
+            if not args.term and not args.phrase:
+                parser.error("Give at least one --term or --phrase")
+            screen_result = screen_items(api, args.q, args.about, args.term, args.phrase, args.collection, args.qmode,
+                                         args.model, not args.no_llm,
+                                         progress=lambda r: print(r["key8"], r["status"], r.get("llm_match", ""), file=sys.stderr, flush=True))
+            write_json(args.output, screen_result)
+            if args.snippets:
+                write_json(args.snippets, blind_snippets(screen_result))
+            result = {"output": str(args.output), "snippets": str(args.snippets) if args.snippets else None,
+                      "total": screen_result["total"], "counts": screen_result["counts"]}
+        elif args.command == "compare":
+            result = compare_verdicts(json.loads(args.screen.read_text()), json.loads(args.verdicts.read_text()))
+            if args.output:
+                write_json(args.output, result)
         elif args.command == "upload":
             result = api.upload_pdf(args.file, args.collection, args.title, args.tag, args.parent_item)
         elif args.command == "bib":

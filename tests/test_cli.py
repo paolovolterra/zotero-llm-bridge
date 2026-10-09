@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "PY"))
 import zotero_llm_bridge
-from zotero_llm_bridge import Zotero, ZoteroError, apply_references, build_bib, expand_shortcut, export_collection_bib
+from zotero_llm_bridge import Zotero, ZoteroError, blind_snippets, compare_verdicts, screen_items, text_windows, apply_references, build_bib, expand_shortcut, export_collection_bib
 
 
 class FakeAPI:
@@ -50,6 +50,48 @@ class FakeAPI:
 
 
 class CLITests(unittest.TestCase):
+    def test_text_windows_case_sensitive_terms_and_merge(self):
+        text = "epic tale. The think tank EPIC said. " + "x " * 400 + "European Policy Innovation Council"
+        snippets, count = text_windows(text, ["EPIC", "Epic"], ["european policy innovation council"], width=20)
+        self.assertEqual(count, 2)
+        self.assertIn("think tank EPIC", snippets[0])
+        self.assertNotIn("epic tale", snippets[0][:5])
+
+    def test_screen_items_phrase_llm_and_compare(self):
+        texts = {"AAAA1111": "Report by the European Policy Innovation Council.",
+                 "BBBB2222": "Il think tank Epic di Bruxelles.",
+                 "CCCC3333": "Fortnite by Epic Games.",
+                 "DDDD4444": "nothing relevant"}
+
+        class API:
+            def search_items(self, *args):
+                items = [{"key8": k, "item_type": "attachment", "title": k, "tags": [], "parent_item": None} for k in texts]
+                items.append({"key8": "EEEE5555", "item_type": "webpage", "title": "page", "tags": [], "parent_item": None})
+                return {"total": len(items), "items": items}
+
+            def item(self, key):
+                return {"key": key}
+
+        judged = []
+
+        def judge(about, snippets, model):
+            judged.append(snippets[0])
+            return ("Bruxelles" in snippets[0], "ok")
+
+        with patch.object(zotero_llm_bridge, "attachment_text", lambda item: texts[item["key"]]):
+            screen = screen_items(API(), "Epic", "EPIC think tank", ["Epic", "EPIC"],
+                                  ["European Policy Innovation Council"], judge=judge)
+        status = {r["key8"]: r["status"] for r in screen["results"]}
+        self.assertEqual(status, {"AAAA1111": "phrase", "BBBB2222": "llm", "CCCC3333": "llm",
+                                  "DDDD4444": "no-term", "EEEE5555": "not-attachment"})
+        self.assertEqual(len(judged), 2)
+        self.assertEqual(screen["counts"]["llm-yes"], 1)
+        blind = blind_snippets(screen)
+        self.assertNotIn("llm_match", json.dumps(blind))
+        report = compare_verdicts(screen, {"AAAA1111": {"match": True}, "BBBB2222": False, "CCCC3333": {"match": True, "reason": "x"}})
+        self.assertEqual(report["counts"], {"agree_yes": 1, "agree_no": 0, "only_local": 1, "only_other": 1, "unjudged": 0})
+        self.assertAlmostEqual(report["agreement"], 0.333)
+
     def test_add_tags_keeps_existing_and_skips_present(self):
         store = {
             "ABCD1234": {"key": "ABCD1234", "data": {"version": 3, "tags": [{"tag": "Old"}]}},

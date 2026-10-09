@@ -149,6 +149,25 @@ La cache predefinita è `~/.config/zotero_llm_bridge/auth.json` su Linux/macOS o
 
 `--collection` accetta la chiave a otto caratteri o un nome esatto e univoco. Filtri diversi si combinano; più `--tag` richiedono tutti i tag (AND). Nelle espressioni di tag e tipo item, `||` significa OR e il prefisso `-` esclude un valore. `--q` è la ricerca testuale di Zotero, che tratta la stringa come frase; non interpreta operatori booleani generici. `--qmode everything` estende la ricerca al testo integrale indicizzato. I risultati sono paginati con `--start` e `--limit` (massimo 100 per pagina). `--top` esclude gli allegati figli.
 
+### Ricerca filtrata da un LLM locale e confronto fra due giudici
+
+La ricerca full-text di Zotero trova anche omonimi (per esempio «Epic» think tank, Epic Games, «epic» aggettivo).
+`screen` estrae dagli allegati trovati i passi attorno ai termini indicati e chiede a un modello locale Ollama se ogni allegato parla davvero del soggetto descritto in `--about`.
+Le `--phrase` (maiuscole indifferenti) valgono come corrispondenze certe e non passano dal modello; i `--term` sono parole intere con maiuscole rispettate.
+Il modello predefinito è `qwen3.8:27b-iq3` (variabile `ZLB_SCREEN_MODEL`); zlb accetta solo un Ollama su `localhost`, così i testi non lasciano la macchina.
+
+```bash
+./zlb screen --q "Epic Draghi" \
+  --about "the Brussels think tank European Policy Innovation Council (EPIC)" \
+  --term Epic --term EPIC --phrase "European Policy Innovation Council" \
+  --output screen.json --snippets blind.json
+./zlb compare --screen screen.json --verdicts other.json --output compare.json
+```
+
+`--snippets` scrive gli stessi passi senza i giudizi del modello locale: un secondo giudice (per esempio l'LLM che guida la sessione) li valuta alla cieca e scrive `other.json` nella forma `{"KEY8": {"match": true, "reason": "..."}}`.
+`compare` riporta accordo, casi trovati solo dal modello locale, casi trovati solo dall'altro giudice e item non giudicati.
+I disaccordi vanno risolti leggendo il documento; zlb non applica tag in automatico: dopo la verifica si usa `zlb tag`.
+
 ### Ricerca semantica su molti PDF
 
 Per domande sul contenuto dei paper, è consigliato un indice semantico separato: estrarre il testo degli allegati Zotero, dividerlo in chunk con pagina o posizione, calcolare gli embedding e ingerirli in shard FAISS. Una mappa persistente deve collegare ogni chunk alla chiave dell'allegato, alla scheda madre, al percorso del PDF e alla posizione nel documento. Conservare anche un hash del file per aggiornare o invalidare i chunk quando il PDF cambia.
