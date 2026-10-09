@@ -74,7 +74,7 @@ class CLITests(unittest.TestCase):
 
         judged = []
 
-        def judge(about, snippets, model):
+        def judge(about, snippets, model, strict=False):
             judged.append(snippets[0])
             return ("Bruxelles" in snippets[0], "ok")
 
@@ -87,6 +87,9 @@ class CLITests(unittest.TestCase):
         self.assertEqual(len(judged), 2)
         self.assertEqual(screen["counts"]["llm-yes"], 1)
         self.assertEqual(screen_hits(screen), ["AAAA1111", "BBBB2222"])
+        errored = {"strict": False, "results": [{"key8": "FFFF6666", "status": "llm-error"}]}
+        self.assertEqual(screen_hits(errored), ["FFFF6666"])
+        self.assertEqual(screen_hits({**errored, "strict": True}), [])
         blind = blind_snippets(screen)
         self.assertNotIn("llm_match", json.dumps(blind))
         report = compare_verdicts(screen, {"AAAA1111": {"match": True}, "BBBB2222": False, "CCCC3333": {"match": True, "reason": "x"}})

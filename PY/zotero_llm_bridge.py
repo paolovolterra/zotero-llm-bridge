@@ -489,13 +489,15 @@ def text_windows(text: str, terms: list[str], phrases: list[str], width: int = 3
     return [text[a:b] for a, b in spans[:limit]], len(spans)
 
 
-def ollama_judge(about: str, snippets: list[str], model: str = SCREEN_MODEL):
+def ollama_judge(about: str, snippets: list[str], model: str = SCREEN_MODEL, strict: bool = False):
     parsed = urlparse(OLLAMA)
     if parsed.hostname not in {"localhost", "127.0.0.1"}:
         raise ZoteroError("zlb screen only uses a local Ollama (localhost); documents must not leave the machine")
     prompt = (f"Do these excerpts really refer to: {about}?\n"
               "Ignore homonyms and other meanings of the same words. "
-              'Answer only JSON: {"match": true|false, "reason": "<max 20 words>"}\n\n' + "\n---\n".join(snippets))
+              + ("Answer true only if the reference is clear. " if strict else
+                 "If the excerpts are ambiguous or you are unsure, answer true: a false positive is better than a miss. ")
+              +               'Answer only JSON: {"match": true|false, "reason": "<max 20 words>"}\n\n' + "\n---\n".join(snippets))
     body = json.dumps({"model": model, "prompt": prompt, "stream": False, "format": "json", "think": False,
                        "options": {"temperature": 0, "num_ctx": 8192}}).encode()
     request = Request(OLLAMA.rstrip("/") + "/api/generate", data=body, headers={"Content-Type": "application/json"})
@@ -509,10 +511,12 @@ def ollama_judge(about: str, snippets: list[str], model: str = SCREEN_MODEL):
 
 def screen_items(api: Zotero, query: str, about: str, terms: list[str], phrases: list[str],
                  collection: str | None = None, qmode: str = "everything", model: str = SCREEN_MODEL,
-                 use_llm: bool = True, width: int = 350, max_windows: int = 4, judge=None, progress=None):
+                 use_llm: bool = True, width: int = 350, max_windows: int = 4, judge=None, progress=None,
+                 strict: bool = False):
     """Zotero full-text search, then text windows, then a local-model verdict per attachment.
 
     Phrase hits are deterministic matches; the local model judges only the remaining term hits.
+    By default the model is asked to favour recall (unsure means yes); strict=True favours precision.
     """
     judge = judge or ollama_judge
     items, start = [], 0
@@ -544,7 +548,7 @@ def screen_items(api: Zotero, query: str, about: str, terms: list[str], phrases:
                 record["status"] = "llm"
                 record["model"] = model
                 try:
-                    record["llm_match"], record["llm_reason"] = judge(about, snippets, model)
+                    record["llm_match"], record["llm_reason"] = judge(about, snippets, model, strict)
                 except ZoteroError as exc:
                     record["status"], record["llm_reason"] = "llm-error", str(exc)
             else:
@@ -557,13 +561,15 @@ def screen_items(api: Zotero, query: str, about: str, terms: list[str], phrases:
         key = record["status"] + ("-yes" if record.get("llm_match") else "-no" if record["status"] == "llm" else "")
         counts[key] = counts.get(key, 0) + 1
     return {"query": query, "qmode": qmode, "collection": collection, "about": about, "terms": terms,
-            "phrases": phrases, "model": model if use_llm else None, "total": len(results), "counts": counts,
+            "phrases": phrases, "model": model if use_llm else None, "strict": strict, "total": len(results), "counts": counts,
             "results": results}
 
 
 def screen_hits(screen: dict):
-    """Attachment keys judged as hits: phrase matches and local-model yes."""
-    return [r["key8"] for r in screen["results"] if r["status"] == "phrase" or (r["status"] == "llm" and r.get("llm_match"))]
+    """Attachment keys judged as hits: phrase matches, local-model yes and, unless strict, model errors."""
+    errors_count = not screen.get("strict")
+    return [r["key8"] for r in screen["results"] if r["status"] == "phrase" or (r["status"] == "llm" and r.get("llm_match"))
+            or (errors_count and r["status"] == "llm-error")]
 
 
 def blind_snippets(screen: dict):
@@ -868,6 +874,7 @@ def main(argv=None):
     screen.add_argument("--qmode", choices=("titleCreatorYear", "everything"), default="everything")
     screen.add_argument("--model", default=SCREEN_MODEL, help="Local Ollama model (env ZLB_SCREEN_MODEL)")
     screen.add_argument("--no-llm", action="store_true", help="Only extract snippets; no local model")
+    screen.add_argument("--strict", action="store_true", help="Favour precision; default favours recall (unsure and model errors count as hits)")
     screen.add_argument("--output", type=Path, required=True, help="Full JSON with local verdicts")
     screen.add_argument("--snippets", type=Path, help="Blind JSON for a second judge, without local verdicts")
     screen.add_argument("--tag", action="append", default=[], help="Add this tag to every hit (phrase or model yes); repeat. Review and remove wrong ones in Zotero")
@@ -917,7 +924,8 @@ def main(argv=None):
                 parser.error("Give at least one --term or --phrase")
             screen_result = screen_items(api, args.q, args.about, args.term, args.phrase, args.collection, args.qmode,
                                          args.model, not args.no_llm,
-                                         progress=lambda r: print(r["key8"], r["status"], r.get("llm_match", ""), file=sys.stderr, flush=True))
+                                         progress=lambda r: print(r["key8"], r["status"], r.get("llm_match", ""), file=sys.stderr, flush=True),
+                                         strict=args.strict)
             write_json(args.output, screen_result)
             if args.snippets:
                 write_json(args.snippets, blind_snippets(screen_result))

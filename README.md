@@ -153,6 +153,7 @@ La cache predefinita è `~/.config/zotero_llm_bridge/auth.json` su Linux/macOS o
 
 La ricerca full-text di Zotero trova anche omonimi (per esempio «Epic» think tank, Epic Games, «epic» aggettivo).
 `screen` estrae dagli allegati trovati i passi attorno ai termini indicati e chiede a un modello locale Ollama se ogni allegato parla davvero del soggetto descritto in `--about`.
+Per impostazione predefinita `screen` privilegia il recall: si chiede al modello di rispondere «sì» nel dubbio e un errore del modello conta come corrispondenza; `--strict` privilegia la precisione.
 Le `--phrase` (maiuscole indifferenti) valgono come corrispondenze certe e non passano dal modello; i `--term` sono parole intere con maiuscole rispettate.
 Il modello predefinito è `qwen3.8:27b-iq3` (variabile `ZLB_SCREEN_MODEL`); zlb accetta solo un Ollama su `localhost`, così i testi non lasciano la macchina.
 
