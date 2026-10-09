@@ -166,7 +166,9 @@ Il modello predefinito è `qwen3.8:27b-iq3` (variabile `ZLB_SCREEN_MODEL`); zlb 
 
 `--snippets` scrive gli stessi passi senza i giudizi del modello locale: un secondo giudice (per esempio l'LLM che guida la sessione) li valuta alla cieca e scrive `other.json` nella forma `{"KEY8": {"match": true, "reason": "..."}}`.
 `compare` riporta accordo, casi trovati solo dal modello locale, casi trovati solo dall'altro giudice e item non giudicati.
-I disaccordi vanno risolti leggendo il documento; zlb non applica tag in automatico: dopo la verifica si usa `zlb tag`.
+I disaccordi vanno risolti leggendo il documento.
+Con `--tag NOME` (ripetibile) `screen` aggiunge subito il tag a ogni corrispondenza (frase certa o «sì» del modello), senza togliere altri tag; i tag sbagliati si tolgono a mano in Zotero, perché zlb non rimuove tag.
+Senza `--tag`, nessuna scrittura: i tag si mettono dopo la verifica con `zlb tag`.
 
 ### Ricerca semantica su molti PDF
 

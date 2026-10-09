@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "PY"))
 import zotero_llm_bridge
-from zotero_llm_bridge import Zotero, ZoteroError, blind_snippets, compare_verdicts, screen_items, text_windows, apply_references, build_bib, expand_shortcut, export_collection_bib
+from zotero_llm_bridge import Zotero, ZoteroError, blind_snippets, screen_hits, compare_verdicts, screen_items, text_windows, apply_references, build_bib, expand_shortcut, export_collection_bib
 
 
 class FakeAPI:
@@ -86,6 +86,7 @@ class CLITests(unittest.TestCase):
                                   "DDDD4444": "no-term", "EEEE5555": "not-attachment"})
         self.assertEqual(len(judged), 2)
         self.assertEqual(screen["counts"]["llm-yes"], 1)
+        self.assertEqual(screen_hits(screen), ["AAAA1111", "BBBB2222"])
         blind = blind_snippets(screen)
         self.assertNotIn("llm_match", json.dumps(blind))
         report = compare_verdicts(screen, {"AAAA1111": {"match": True}, "BBBB2222": False, "CCCC3333": {"match": True, "reason": "x"}})

@@ -561,6 +561,11 @@ def screen_items(api: Zotero, query: str, about: str, terms: list[str], phrases:
             "results": results}
 
 
+def screen_hits(screen: dict):
+    """Attachment keys judged as hits: phrase matches and local-model yes."""
+    return [r["key8"] for r in screen["results"] if r["status"] == "phrase" or (r["status"] == "llm" and r.get("llm_match"))]
+
+
 def blind_snippets(screen: dict):
     """Snippets for a second judge, without the local model's verdicts."""
     keep = ("key8", "parent_item", "title", "status", "snippets")
@@ -865,6 +870,7 @@ def main(argv=None):
     screen.add_argument("--no-llm", action="store_true", help="Only extract snippets; no local model")
     screen.add_argument("--output", type=Path, required=True, help="Full JSON with local verdicts")
     screen.add_argument("--snippets", type=Path, help="Blind JSON for a second judge, without local verdicts")
+    screen.add_argument("--tag", action="append", default=[], help="Add this tag to every hit (phrase or model yes); repeat. Review and remove wrong ones in Zotero")
     compare = sub.add_parser("compare", help="Compare a screen output with another judge's verdicts")
     compare.add_argument("--screen", type=Path, required=True)
     compare.add_argument("--verdicts", type=Path, required=True, help='JSON {"KEY8": {"match": bool, "reason": str}}')
@@ -917,6 +923,9 @@ def main(argv=None):
                 write_json(args.snippets, blind_snippets(screen_result))
             result = {"output": str(args.output), "snippets": str(args.snippets) if args.snippets else None,
                       "total": screen_result["total"], "counts": screen_result["counts"]}
+            if args.tag:
+                hits = screen_hits(screen_result)
+                result["tagged"] = api.add_tags(hits, args.tag) if hits else {"tags": args.tag, "items": [], "changed": 0}
         elif args.command == "compare":
             result = compare_verdicts(json.loads(args.screen.read_text()), json.loads(args.verdicts.read_text()))
             if args.output:
