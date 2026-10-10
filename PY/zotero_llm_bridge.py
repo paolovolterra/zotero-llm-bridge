@@ -36,6 +36,7 @@ def default_auth_file():
 AUTH_FILE = default_auth_file()
 INDEX_FILE = AUTH_FILE.with_name(".zlb-attachment-index.json")
 KEY_RE = re.compile(r"^[A-Z0-9]{8}$")
+WRITE_BATCH = 50  # Zotero rejects larger item writes with HTTP 413
 
 
 class ZoteroError(RuntimeError):
@@ -212,9 +213,10 @@ class Zotero:
             missing = [{"tag": tag} for tag in tags if tag not in present]
             if missing:
                 updates.append({"key": key, "version": item["data"]["version"], "tags": current + missing})
-        if updates:
-            result = self.post("/users/0/items", json.dumps(updates).encode(), "application/json")
-            if result.get("failed") or len(result.get("success", {})) != len(updates):
+        for start in range(0, len(updates), WRITE_BATCH):
+            batch = updates[start:start + WRITE_BATCH]
+            result = self.post("/users/0/items", json.dumps(batch).encode(), "application/json")
+            if result.get("failed") or len(result.get("success", {})) != len(batch):
                 raise ZoteroError(f"Tag update failed: {result}")
         for key in items:
             present = {tag["tag"] for tag in self.item(key)["data"].get("tags", [])}

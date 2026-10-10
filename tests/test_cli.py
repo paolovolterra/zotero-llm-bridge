@@ -120,6 +120,23 @@ class CLITests(unittest.TestCase):
         with self.assertRaisesRegex(ZoteroError, "non-empty"):
             api.add_tags(["ABCD1234"], [" "])
 
+    def test_add_tags_posts_in_batches_of_50(self):
+        store = {f"K{i:07d}": {"key": f"K{i:07d}", "data": {"version": 1, "tags": []}} for i in range(120)}
+        sizes = []
+        api = Zotero()
+        api.item = lambda key: store[key]
+
+        def post(path, body, content_type):
+            updates = json.loads(body)
+            sizes.append(len(updates))
+            for update in updates:
+                store[update["key"]]["data"]["tags"] = update["tags"]
+            return {"success": {str(i): u["key"] for i, u in enumerate(updates)}, "failed": {}}
+
+        api.post = post
+        self.assertEqual(api.add_tags(list(store), ["New"])["changed"], 120)
+        self.assertEqual(sizes, [50, 50, 20])
+
     def test_delete_request_is_rejected_before_network(self):
         with self.assertRaisesRegex(ZoteroError, "does not delete"):
             Zotero().request("DELETE", "/users/0/items/ABCD1234")
