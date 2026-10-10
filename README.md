@@ -168,7 +168,7 @@ Il modello predefinito è `qwen3.8:27b-iq3` (variabile `ZLB_SCREEN_MODEL`); zlb 
 `--snippets` scrive gli stessi passi senza i giudizi del modello locale: un secondo giudice (per esempio l'LLM che guida la sessione) li valuta alla cieca e scrive `other.json` nella forma `{"KEY8": {"match": true, "reason": "..."}}`.
 `compare` riporta accordo, casi trovati solo dal modello locale, casi trovati solo dall'altro giudice e item non giudicati.
 I disaccordi vanno risolti leggendo il documento.
-Con `--tag NOME` (ripetibile) `screen` aggiunge subito il tag a ogni corrispondenza (frase certa o «sì» del modello), senza togliere altri tag; i tag sbagliati si tolgono a mano in Zotero, perché zlb non rimuove tag.
+Con `--tag NOME` (ripetibile) `screen` aggiunge subito il tag a ogni corrispondenza (frase certa o «sì» del modello), senza togliere altri tag; i tag sbagliati si tolgono con `zlb untag` o a mano in Zotero.
 Senza `--tag`, nessuna scrittura: i tag si mettono dopo la verifica con `zlb tag`.
 
 ### Ricerca semantica su molti PDF
@@ -188,7 +188,7 @@ Il flusso di ricerca può combinare i due livelli: prima restringere per raccolt
 
 `add` conserva le altre appartenenze. `move` toglie la scheda dalla raccolta sorgente e la aggiunge alla destinazione. La chiave può riferirsi anche a un allegato: il comando risale alla scheda madre. Le operazioni sono idempotenti e verificano il risultato via API.
 
-`tag` aggiunge uno o più tag (`--tag` ripetibile) alle chiavi indicate, così come sono (scheda o allegato), senza togliere i tag esistenti; i tag già presenti sono saltati e il risultato è verificato via API. zlb non rimuove tag: la rimozione si fa a mano in Zotero.
+`tag` aggiunge uno o più tag (`--tag` ripetibile) alle chiavi indicate, così come sono (scheda o allegato), senza togliere i tag esistenti; i tag già presenti sono saltati e il risultato è verificato via API. `untag` toglie solo i tag indicati (`--tag` ripetibile) dalle chiavi indicate, lascia gli altri tag e le schede, verifica via API: `./zlb untag --tag Draghi ABCD1234`.
 
 ## PDF
 

@@ -137,6 +137,27 @@ class CLITests(unittest.TestCase):
         self.assertEqual(api.add_tags(list(store), ["New"])["changed"], 120)
         self.assertEqual(sizes, [50, 50, 20])
 
+    def test_remove_tags_keeps_other_tags(self):
+        store = {
+            "ABCD1234": {"key": "ABCD1234", "data": {"version": 3, "tags": [{"tag": "Old"}, {"tag": "Bad", "type": 1}]}},
+            "EFGH5678": {"key": "EFGH5678", "data": {"version": 5, "tags": [{"tag": "Old"}]}},
+        }
+        posts = []
+        api = Zotero()
+        api.item = lambda key: store[key]
+
+        def post(path, body, content_type):
+            updates = json.loads(body)
+            posts.append(updates)
+            for update in updates:
+                store[update["key"]]["data"]["tags"] = update["tags"]
+            return {"success": {str(i): u["key"] for i, u in enumerate(updates)}, "failed": {}}
+
+        api.post = post
+        self.assertEqual(api.remove_tags(["ABCD1234", "EFGH5678"], ["Bad"])["changed"], 1)
+        self.assertEqual(posts, [[{"key": "ABCD1234", "version": 3, "tags": [{"tag": "Old"}]}]])
+        self.assertEqual(api.remove_tags(["ABCD1234"], ["Bad"])["changed"], 0)
+
     def test_delete_request_is_rejected_before_network(self):
         with self.assertRaisesRegex(ZoteroError, "does not delete"):
             Zotero().request("DELETE", "/users/0/items/ABCD1234")

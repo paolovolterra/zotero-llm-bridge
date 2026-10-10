@@ -224,6 +224,29 @@ class Zotero:
                 raise ZoteroError(f"Tag verification failed for {key}")
         return {"tags": tags, "items": list(items), "changed": len(updates)}
 
+    def remove_tags(self, keys: list[str], tags: list[str]):
+        """Remove only the named tags from the named items; other tags and the items themselves stay."""
+        tags = list(dict.fromkeys(tag.strip() for tag in tags if tag.strip()))
+        if not tags:
+            raise ZoteroError("Specify at least one non-empty --tag")
+        items = {key: self.item(key) for key in keys}
+        updates = []
+        for key, item in items.items():
+            current = list(item["data"].get("tags", []))
+            kept = [tag for tag in current if tag["tag"] not in tags]
+            if len(kept) != len(current):
+                updates.append({"key": key, "version": item["data"]["version"], "tags": kept})
+        for start in range(0, len(updates), WRITE_BATCH):
+            batch = updates[start:start + WRITE_BATCH]
+            result = self.post("/users/0/items", json.dumps(batch).encode(), "application/json")
+            if result.get("failed") or len(result.get("success", {})) != len(batch):
+                raise ZoteroError(f"Tag removal failed: {result}")
+        for key in items:
+            present = {tag["tag"] for tag in self.item(key)["data"].get("tags", [])}
+            if set(tags) & present:
+                raise ZoteroError(f"Tag removal verification failed for {key}")
+        return {"tags": tags, "items": list(items), "changed": len(updates)}
+
     def collection_items(self, collection_key: str):
         return self.get(f"/users/0/collections/{collection_key}/items?limit=1000")
 
@@ -831,7 +854,7 @@ def apply_references(api: Zotero, path: Path, collection: str, output: Path | No
 def expand_shortcut(argv):
     args = list(argv)
     offset = 1 if args[:1] == ["--json"] else 0
-    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "tag", "screen", "compare", "upload", "bib", "apply"}
+    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "tag", "untag", "screen", "compare", "upload", "bib", "apply"}
     if len(args) > offset and not args[offset].startswith("-") and args[offset] not in commands:
         args[offset:offset + 1] = ["search", "--collection", args[offset]]
     return args
@@ -867,6 +890,9 @@ def main(argv=None):
     tag = sub.add_parser("tag", help="Add tags to existing items without removing other tags")
     tag.add_argument("--tag", action="append", required=True, help="Tag to add; repeat for several")
     tag.add_argument("items", nargs="+")
+    untag = sub.add_parser("untag", help="Remove named tags from existing items; other tags stay")
+    untag.add_argument("--tag", action="append", required=True, help="Tag to remove; repeat for several")
+    untag.add_argument("items", nargs="+")
     screen = sub.add_parser("screen", help="Full-text search, then a local LLM (Ollama) judges each hit; output JSON")
     screen.add_argument("--q", required=True, help="Zotero full-text query")
     screen.add_argument("--about", required=True, help="What a true hit refers to, in plain words")
@@ -921,6 +947,8 @@ def main(argv=None):
             result = api.change_membership(args.items, args.target, args.source)
         elif args.command == "tag":
             result = api.add_tags(args.items, args.tag)
+        elif args.command == "untag":
+            result = api.remove_tags(args.items, args.tag)
         elif args.command == "screen":
             if not args.term and not args.phrase:
                 parser.error("Give at least one --term or --phrase")
