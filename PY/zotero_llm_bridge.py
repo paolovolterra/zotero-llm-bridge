@@ -474,7 +474,9 @@ def attachment_path(item):
 
 
 OLLAMA = os.environ.get("ZLB_OLLAMA_URL", "http://localhost:11434")
-SCREEN_MODEL = os.environ.get("ZLB_SCREEN_MODEL", "qwen3.8:27b-iq3")
+SCREEN_MODEL = os.environ.get("ZLB_SCREEN_MODEL", "qwen3.8:27b-iq3-mtp")
+# Draft tokens for models with an MTP head (speculative decoding); 3 overflows 16 GB VRAM
+MTP_DRAFT = int(os.environ.get("ZLB_MTP_DRAFT", "2"))
 
 
 def attachment_text(item):
@@ -514,6 +516,14 @@ def text_windows(text: str, terms: list[str], phrases: list[str], width: int = 3
     return [text[a:b] for a, b in spans[:limit]], len(spans)
 
 
+def ollama_options(model: str) -> dict:
+    """Deterministic judge options; speculative decoding only for models with an MTP head."""
+    options = {"temperature": 0, "num_ctx": 8192}
+    if "mtp" in model and MTP_DRAFT > 0:
+        options["draft_num_predict"] = MTP_DRAFT
+    return options
+
+
 def ollama_judge(about: str, snippets: list[str], model: str = SCREEN_MODEL, strict: bool = False):
     parsed = urlparse(OLLAMA)
     if parsed.hostname not in {"localhost", "127.0.0.1"}:
@@ -524,7 +534,7 @@ def ollama_judge(about: str, snippets: list[str], model: str = SCREEN_MODEL, str
                  "If the excerpts are ambiguous or you are unsure, answer true: a false positive is better than a miss. ")
               +               'Answer only JSON: {"match": true|false, "reason": "<max 20 words>"}\n\n' + "\n---\n".join(snippets))
     body = json.dumps({"model": model, "prompt": prompt, "stream": False, "format": "json", "think": False,
-                       "options": {"temperature": 0, "num_ctx": 8192}}).encode()
+                       "options": ollama_options(model)}).encode()
     request = Request(OLLAMA.rstrip("/") + "/api/generate", data=body, headers={"Content-Type": "application/json"})
     try:
         with urlopen(request, timeout=600) as response:
