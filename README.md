@@ -1,98 +1,100 @@
 # zotero-llm-bridge (`zlb`)
 
+*English · [Italiano](README.it.md)*
+
 [![Release](https://img.shields.io/github/v/release/paolovolterra/zotero-llm-bridge)](https://github.com/paolovolterra/zotero-llm-bridge/releases/latest)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22900666.svg)](https://doi.org/10.5281/zenodo.22900666)
 ![Zotero 10](https://img.shields.io/badge/Zotero-10-cc2936)
 [![License: 0BSD](https://img.shields.io/badge/license-0BSD-blue)](LICENSE)
 
-CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux, macOS e Windows. Il comando breve è `zlb`. Usa `http://localhost:23119/api/` con Zotero aperto. Tutte le scritture passano dall'API locale; non modifica i database SQLite e non usa zotero.org.
+A local CLI for Zotero 10, usable from the terminal, from scripts and by LLM agents on Linux, macOS and Windows. The short command is `zlb`. It talks to `http://localhost:23119/api/` while Zotero is open. All writes go through the local API; it never modifies the SQLite databases and does not use zotero.org.
 
-## Novità nella 0.2.0
+## What's new in 0.2.0
 
 > [!NOTE]
-> Versione 0.2.0 del 2026-11-02, verificata dal vivo con **Zotero 10.0.7** su Linux. Archivio su Zenodo: [10.5281/zenodo.23875898](https://doi.org/10.5281/zenodo.23875898). Note complete nella [release](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.2.0).
+> Version 0.2.0, released 2026-11-02, verified live with **Zotero 10.0.7** on Linux. Archived on Zenodo: [10.5281/zenodo.23875898](https://doi.org/10.5281/zenodo.23875898). Full notes in the [release](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.2.0).
 
-| Comando | Che cosa fa | Scrive in Zotero? |
+| Command | What it does | Writes to Zotero? |
 |---|---|---|
-| [`highlight`](#evidenziare-nel-pdf-i-passaggi-citati) | Trova nel PDF di un allegato le frasi citate (dichiarate in un manifest) e crea evidenziazioni native di Zotero, grigie per impostazione predefinita | Solo con `--apply`, dopo un'anteprima in cui ogni passaggio è univoco |
-| [`screen`](#ricerca-filtrata-da-un-llm-locale-e-confronto-fra-due-giudici) | Filtra i risultati della ricerca full-text con un modello Ollama locale (solo `localhost`), scartando omonimi; orientato al recall, `--strict` per la precisione | Solo con `--tag` |
-| [`compare`](#ricerca-filtrata-da-un-llm-locale-e-confronto-fra-due-giudici) | Confronta i giudizi di `screen` con quelli di un secondo giudice cieco e riporta accordo e disaccordi | No |
-| [`tag`](#raccolte-e-schede-esistenti) / [`untag`](#raccolte-e-schede-esistenti) | Aggiunge o toglie tag nominati su schede o allegati, senza toccare gli altri; scrittura a lotti di 50 | Sì |
+| [`highlight`](#highlight-quoted-passages-in-the-pdf) | Finds the quoted sentences declared in a manifest inside a PDF attachment and creates native Zotero highlight annotations, gray by default | Only with `--apply`, after a dry-run in which every passage is unique |
+| [`screen`](#full-text-search-filtered-by-a-local-llm-and-two-judge-comparison) | Filters full-text search results with a local Ollama model (`localhost` only), discarding homonyms; recall-oriented, `--strict` for precision | Only with `--tag` |
+| [`compare`](#full-text-search-filtered-by-a-local-llm-and-two-judge-comparison) | Compares `screen` verdicts with those of a blind second judge and reports agreement and disagreements | No |
+| [`tag`](#existing-collections-and-items) / [`untag`](#existing-collections-and-items) | Adds or removes named tags on items or attachments, leaving other tags untouched; writes in batches of 50 | Yes |
 
 ```bash
-zlb highlight --manifest passages.json            # anteprima: exact / ambiguous / not-found
-zlb highlight --manifest passages.json --apply    # crea le evidenziazioni
+zlb highlight --manifest passages.json            # dry-run: exact / ambiguous / not-found
+zlb highlight --manifest passages.json --apply    # create the highlights
 zlb screen --q "Epic Draghi" --about "the Brussels think tank EPIC" --term EPIC --output screen.json
 zlb tag --tag EPIC ABCD1234 && zlb untag --tag EPIC ABCD1234
 ```
 
-Restano invariati i principi: nessuna cancellazione, nessuna scrittura su SQLite, solo API locale.
+The principles are unchanged: no deletions, no SQLite writes, local API only.
 
-## Da una richiesta all'LLM alla raccolta Zotero
+## From an LLM request to a Zotero collection
 
-Durante uno studio o una ricerca, l'utente può chiedere a un LLM di consigliare paper su un tema, cercarne i PDF online e scrivere `references.bib`. 
+While studying a topic, you can ask an LLM to recommend papers, look for their PDFs online and write `references.bib`.
 
-`zlb` porta i PDF reperiti nella libreria Zotero direttamente senza download manuali.
+`zlb` brings the PDFs it found straight into your Zotero library, with no manual downloads.
 
-L'utente poi può aprirli, leggerli e annotarli .
+You then open, read and annotate them in Zotero.
 
-Ad un LLM si può chiedere, per esempio:
+For example, you can ask an LLM:
 
-> «Consigliami paper pertinenti a questo argomento e spiegami perché leggerli. Cerca prima i PDF già presenti in Zotero e aggiungili alla raccolta `Letture consigliate`. Per gli altri cerca PDF accessibili sul web e importali nella stessa raccolta: voglio leggerli in Zotero. Scrivi `references.bib` con `key8` e percorso dei PDF risolti. Metti all'inizio i paper che non riesci a reperire, così posso cercarli io.»
+> "Recommend papers relevant to this topic and explain why I should read them. First look for PDFs already in Zotero and add them to the `Recommended reading` collection. For the others, find PDFs accessible on the web and import them into the same collection: I want to read them in Zotero. Write `references.bib` with the `key8` and path of the resolved PDFs. Put the papers you cannot find at the top, so I can look for them myself."
 
 ```mermaid
 flowchart LR
-    A["Argomento di studio"] --> B["LLM: consiglia paper e prepara il manifest"]
+    A["Study topic"] --> B["LLM: recommends papers and prepares the manifest"]
     B --> C["zlb apply"]
-    C --> D{"PDF già in Zotero?"}
-    D -->|Sì| E["Aggiunge la scheda alla raccolta"]
-    D -->|No, URL disponibile| F["Importa il PDF tramite API locale"]
-    D -->|Non reperibile| G["Segnala il riferimento irrisolto"]
-    F -->|Server esterno blocca il download| G
-    E --> H["Utente: apre e legge i PDF in Zotero"]
+    C --> D{"PDF already in Zotero?"}
+    D -->|Yes| E["Adds the item to the collection"]
+    D -->|No, URL available| F["Imports the PDF via the local API"]
+    D -->|Not found| G["Reports the unresolved reference"]
+    F -->|External server blocks the download| G
+    E --> H["User: opens and reads the PDFs in Zotero"]
     F --> H
-    H --> J["BibTeX: key8 e percorso del PDF"]
-    G --> I["BibTeX: riferimento in testa per l'utente"]
+    H --> J["BibTeX: key8 and PDF path"]
+    G --> I["BibTeX: reference at the top for the user"]
 ```
 
-L'LLM conduce la ricerca bibliografica e sul web con gli strumenti di cui dispone, verifica le corrispondenze e prepara un [manifest JSON](#riferimenti-e-bibtex) con titolo, DOI, chiave Zotero o `pdf_url`. `zlb` esegue la parte locale: cerca nell'intera libreria, collega alla raccolta le schede già presenti, importa i PDF nuovi tramite l'API locale e produce il BibTeX. L'utente apre i PDF in Zotero per leggerli e valutare i suggerimenti. Un esempio del passaggio finale è:
+The LLM does the bibliographic and web search with whatever tools it has, checks the matches and prepares a [JSON manifest](#references-and-bibtex) with title, DOI, Zotero key or `pdf_url`. `zlb` does the local part: it searches the whole library, links items already present to the collection, imports new PDFs through the local API and produces the BibTeX. You open the PDFs in Zotero to read them and judge the suggestions. A typical final step:
 
 ```bash
-zlb ensure-collection --name "Letture consigliate"
-zlb apply --manifest references.json --collection "Letture consigliate" --output references.bib
+zlb ensure-collection --name "Recommended reading"
+zlb apply --manifest references.json --collection "Recommended reading" --output references.bib
 ```
 
-Se un PDF non si trova o un server esterno rifiuta il download, `apply` segnala `missing` o `error` per quel riferimento. La voce resta **all'inizio del BibTeX**, senza `key8` o percorso inventati: l'utente può procurare il PDF o correggere l'URL e riprendere dal manifest. Il CLI non effettua da solo ricerche sul web e non aggira blocchi o autorizzazioni dei siti. Se invece è il server locale di Zotero a non rispondere, occorre riaprire Zotero e ripetere il comando prima di generare il BibTeX.
+If a PDF cannot be found or an external server refuses the download, `apply` reports `missing` or `error` for that reference. The entry stays **at the top of the BibTeX**, with no invented `key8` or path: you can obtain the PDF or fix the URL and resume from the manifest. The CLI does not search the web by itself and does not bypass site blocks or authorisations. If instead the local Zotero server does not respond, reopen Zotero and repeat the command before generating the BibTeX.
 
-## Avvertenza e responsabilità
+## Disclaimer and liability
 
-`zlb` può modificare raccolte e schede e copiare PDF nella libreria Zotero. L'utilizzatore deve leggere il codice, controllare i comandi proposti anche da un LLM, verificare i risultati e mantenere un backup della libreria. Deve inoltre verificare identità, metadati e diritti d'uso dei documenti importati. Il programma è fornito **«così com'è»**, senza garanzie di correttezza, idoneità o assenza di errori. Nei limiti consentiti dalla legge applicabile, autori e contributori declinano responsabilità per perdite di dati, errori bibliografici o altri danni derivanti dall'uso del programma.
+`zlb` can modify collections and items and copy PDFs into the Zotero library. Users must read the code, check the commands proposed (including by an LLM), verify the results and keep a backup of the library. They must also verify the identity, metadata and usage rights of imported documents. The software is provided **"as is"**, with no warranty of correctness, fitness or absence of errors. To the extent permitted by applicable law, authors and contributors disclaim liability for data loss, bibliographic errors or other damage arising from use of the software.
 
-**zlb non cancella schede, raccolte o allegati da Zotero.** Non offre un comando di cancellazione e rifiuta le richieste `DELETE` all'API locale. La cancellazione, quando necessaria, viene eseguita manualmente dall'utente nell'interfaccia di Zotero. `move` cambia soltanto l'appartenenza della scheda alle raccolte: la scheda e il suo PDF restano nella libreria.
+**zlb does not delete items, collections or attachments from Zotero.** It offers no delete command and refuses `DELETE` requests to the local API. Deletion, when needed, is done manually by the user in the Zotero interface. `move` only changes which collections an item belongs to: the item and its PDF stay in the library.
 
-## Licenza
+## License
 
-Il codice è distribuito con licenza [0BSD](LICENSE): si può usare, copiare, modificare e ridistribuire per qualunque scopo, anche commerciale, senza obbligo di attribuzione. La licenza include l'esclusione di garanzie e responsabilità nel suo testo originale.
+The code is released under the [0BSD](LICENSE) license: you may use, copy, modify and redistribute it for any purpose, including commercial, without attribution. The license text includes the disclaimer of warranty and liability.
 
-## Citazione e archivio
+## Citation and archive
 
-La versione 0.2.0 è archiviata su [Zenodo](https://doi.org/10.5281/zenodo.23875898) con DOI `10.5281/zenodo.23875898`; il DOI di concetto [`10.5281/zenodo.22900666`](https://doi.org/10.5281/zenodo.22900666) punta sempre all'ultima versione. La versione 0.1.0 resta disponibile con DOI `10.5281/zenodo.22900667`. Il repository GitHub contiene il codice e gli aggiornamenti; il DOI di versione identifica lo snapshot pubblicato. I metadati di citazione per GitHub sono in [CITATION.cff](CITATION.cff).
+Version 0.2.0 is archived on [Zenodo](https://doi.org/10.5281/zenodo.23875898) with DOI `10.5281/zenodo.23875898`; the concept DOI [`10.5281/zenodo.22900666`](https://doi.org/10.5281/zenodo.22900666) always resolves to the latest version. Version 0.1.0 remains available with DOI `10.5281/zenodo.22900667`. The GitHub repository holds the code and later updates; the version DOI identifies the published snapshot. Citation metadata for GitHub are in [CITATION.cff](CITATION.cff).
 
-La versione 0.2.0 aggiunge `tag`, `untag`, `screen`, `compare` e `highlight` ed è stata verificata dal vivo su Linux con Zotero 10.0.7.
+Version 0.2.0 adds `tag`, `untag`, `screen`, `compare` and `highlight` and was verified live on Linux with Zotero 10.0.7.
 
-SHA-256 dello ZIP `zotero-llm-bridge-v0.2.0.zip` scaricato da Zenodo:
+SHA-256 of the ZIP `zotero-llm-bridge-v0.2.0.zip` downloaded from Zenodo:
 
 ```text
 6fa3834a096e121718ec934b78b3539d5edf7bb190f59ea5fc82b39efda1fd55
 ```
 
-Verifica: `sha256sum zotero-llm-bridge-v0.2.0.zip` su Linux, `shasum -a 256 zotero-llm-bridge-v0.2.0.zip` su macOS oppure `Get-FileHash .\zotero-llm-bridge-v0.2.0.zip -Algorithm SHA256` in PowerShell. L'hash si riferisce allo ZIP di Zenodo, non al codice aggiornato su GitHub.
+Check it with `sha256sum zotero-llm-bridge-v0.2.0.zip` on Linux, `shasum -a 256 zotero-llm-bridge-v0.2.0.zip` on macOS or `Get-FileHash .\zotero-llm-bridge-v0.2.0.zip -Algorithm SHA256` in PowerShell. The hash refers to the Zenodo ZIP, not to the code updated later on GitHub.
 
-## Installazione
+## Installation
 
-Servono Zotero 10 aperto, l'opzione **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** attiva e Python 3.10 o successivo. Non serve installare un'estensione `.xpi` né creare una chiave su zotero.org. Il repository è pubblico e si può clonare senza un account GitHub.
+You need Zotero 10 open, the option **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** enabled, and Python 3.10 or later. No `.xpi` extension and no zotero.org key are needed. The repository is public and can be cloned without a GitHub account.
 
-### Linux e macOS
+### Linux and macOS
 
 ```bash
 git clone https://github.com/paolovolterra/zotero-llm-bridge.git
@@ -104,7 +106,7 @@ export PATH="$HOME/.local/bin:$PATH"
 zlb status
 ```
 
-Il clone pubblico non richiede credenziali GitHub. Il collegamento in `~/.local/bin` si crea una sola volta; per aggiornare il programma basta `git pull` nella cartella clonata. Rendere persistente l'aggiunta al `PATH` nel profilo della propria shell, se non è già configurata.
+The public clone needs no GitHub credentials. The link in `~/.local/bin` is created once; to update, run `git pull` in the cloned folder. Make the `PATH` change persistent in your shell profile if it is not already set.
 
 ### Windows
 
@@ -116,17 +118,17 @@ py -3 -m pip install --user .
 zlb status
 ```
 
-Se `zlb` non è riconosciuto, aggiungere al `PATH` la directory `Scripts` dell'installazione Python dell'utente. In alternativa, dalla cartella del repository si può sempre eseguire `py -3 PY\zotero_llm_bridge.py status`.
+If `zlb` is not recognised, add the `Scripts` directory of your user Python installation to `PATH`. Alternatively, from the repository folder you can always run `py -3 PY\zotero_llm_bridge.py status`.
 
-### Da un archivio del codice
+### From a code archive
 
-Se si dispone dello ZIP del codice, estrarlo e aprire un terminale nella cartella `zotero-llm-bridge-v0.2.0`. Su Linux/macOS eseguire `./zlb status`; su Windows eseguire `py -3 PY\zotero_llm_bridge.py status` oppure `py -3 -m pip install --user .` e poi `zlb status`. L'archivio contiene una copia autonoma del CLI.
+If you have the code ZIP, extract it and open a terminal in the `zotero-llm-bridge-v0.2.0` folder. On Linux/macOS run `./zlb status`; on Windows run `py -3 PY\zotero_llm_bridge.py status` or `py -3 -m pip install --user .` and then `zlb status`. The archive contains a self-contained copy of the CLI.
 
-## Modello d'uso
+## Usage model
 
-Un LLM può cercare fonti sul web, preparare un manifest e invocare i comandi del CLI. Chi utilizza il pacchetto può leggere il codice e decide quali operazioni autorizzare ed eseguire sulla propria libreria. Il CLI usa le richieste e l'autorizzazione dell'API locale di Zotero: è Zotero a creare le chiavi, registrare le schede e gestire i file importati. I controlli del CLI verificano appartenenza alla raccolta e integrità dei PDF, ma non accertano da soli che un documento sia il paper citato o che i suoi metadati siano corretti.
+An LLM can search the web for sources, prepare a manifest and invoke the CLI commands. Whoever uses the package can read the code and decides which operations to authorise and run on their own library. The CLI uses the requests and authorisation of the Zotero local API: Zotero creates the keys, registers the items and manages the imported files. The CLI's checks verify collection membership and PDF integrity, but cannot by themselves establish that a document is the cited paper or that its metadata are correct.
 
-## Avvio
+## Getting started
 
 ```bash
 ./zlb status
@@ -135,9 +137,9 @@ Un LLM può cercare fonti sul web, preparare un manifest e invocare i comandi de
 ./zlb "My papers" --top --limit 20
 ```
 
-`zlb collections "My papers"` elenca le sottoraccolte; `zlb "My papers"` elenca schede e allegati nella raccolta. Aggiungere `--top` per vedere solo le schede principali. La forma breve equivale a `zlb search --collection "My papers"`. Il nome deve essere esatto e univoco; se non lo è, usare la chiave a otto caratteri.
+`zlb collections "My papers"` lists the subcollections; `zlb "My papers"` lists items and attachments in the collection. Add `--top` to see only top-level items. The short form is equivalent to `zlb search --collection "My papers"`. The name must be exact and unique; otherwise use the eight-character key.
 
-### Esempio reale: `PolicyIA`
+### Real example: `PolicyIA`
 
 ```bash
 zlb -h
@@ -148,25 +150,25 @@ zlb bib --collection PolicyIA
 zlb bib --collection PolicyIA --output PolicyIA.bib
 ```
 
-`zlb collections PolicyIA` mostra le **sottoraccolte**: nella prova del 22 settembre ha restituito `[]`. `zlb PolicyIA --top --limit 5` mostra le prime cinque dei 53 item principali osservati. `zlb bib --collection PolicyIA` stampa il BibTeX della raccolta sul terminale; con `--output` lo salva nella directory corrente. L'esportazione diretta usa il traduttore BibTeX di Zotero per le schede bibliografiche, include i PDF autonomi come voci `misc` e aggiunge `key8`. Le note autonome vengono saltate e riportate nel riepilogo JSON quando si usa `--output`. Non serve un manifest per questi comandi.
+`zlb collections PolicyIA` shows the **subcollections**: in the 22 September test it returned `[]`. `zlb PolicyIA --top --limit 5` shows the first five of the 53 top-level items observed. `zlb bib --collection PolicyIA` prints the collection's BibTeX to the terminal; with `--output` it saves it in the current directory. The direct export uses Zotero's BibTeX translator for bibliographic items, includes standalone PDFs as `misc` entries and adds `key8`. Standalone notes are skipped and listed in the JSON summary when `--output` is used. No manifest is needed for these commands.
 
-L'export rispecchia i metadati presenti in Zotero: se mancano autori, date o sede editoriale, il `.bib` può produrre avvisi durante la compilazione. La correzione dei metadati si fa in Zotero e poi si ripete l'esportazione. L'[API ufficiale supporta BibTeX come formato di export](https://www.zotero.org/support/dev/web_api/v3/basics).
+The export mirrors the metadata in Zotero: if authors, dates or venue are missing, the `.bib` may raise warnings at compile time. Fix the metadata in Zotero and export again. The [official API supports BibTeX as an export format](https://www.zotero.org/support/dev/web_api/v3/basics).
 
-I comandi restituiscono JSON. Le letture non richiedono autorizzazione; le scritture seguono la procedura qui sotto.
+Commands return JSON. Reads need no authorisation; writes follow the procedure below.
 
-### Autorizzazione delle scritture
+### Write authorisation
 
-Alla prima operazione che modifica Zotero (`ensure-collection`, `add`, `move`, `upload`, `highlight --apply` o `apply`), il client aperto mostra una richiesta per **ZoteroLLMBridge**:
+On the first operation that modifies Zotero (`ensure-collection`, `add`, `move`, `upload`, `highlight --apply` or `apply`), the open client shows a prompt for **ZoteroLLMBridge**:
 
-- **Allow** autorizza una sola scrittura. Un'operazione composta da più scritture, come l'upload di un PDF, può richiedere altre conferme.
-- **Always Allow** restituisce una chiave riutilizzabile. `zlb` la salva localmente e le scritture successive non mostrano un nuovo prompt finché l'autorizzazione resta valida.
-- **Deny** rifiuta l'operazione; `zlb` non salva alcuna chiave.
+- **Allow** authorises a single write. An operation made of several writes, such as uploading a PDF, may ask again.
+- **Always Allow** returns a reusable key. `zlb` stores it locally and later writes show no new prompt while the authorisation remains valid.
+- **Deny** refuses the operation; `zlb` stores no key.
 
-La cache predefinita è `~/.config/zotero_llm_bridge/auth.json` su Linux/macOS oppure `%APPDATA%\\zotero_llm_bridge\\auth.json` su Windows. Si può scegliere un altro file con `ZOTERO_LLM_BRIDGE_AUTH_FILE`. La cache contiene la chiave e l'identificativo dell'istanza Zotero, non le credenziali di zotero.org; su Linux/macOS il file è creato con permessi `0600`. La copia di lavoro condivisa usa invece `.zotero-local-auth.json` nella cartella del pacchetto, esclusa da Git. Una chiave associata a un'altra istanza non viene riusata. Se Zotero rifiuta una chiave salvata (`401`), il CLI la elimina e richiede una nuova autorizzazione.
+The default cache is `~/.config/zotero_llm_bridge/auth.json` on Linux/macOS or `%APPDATA%\\zotero_llm_bridge\\auth.json` on Windows. Another file can be chosen with `ZOTERO_LLM_BRIDGE_AUTH_FILE`. The cache holds the key and the Zotero instance identifier, not zotero.org credentials; on Linux/macOS the file is created with `0600` permissions. A shared working copy uses `.zotero-local-auth.json` in the package folder instead, excluded from Git. A key bound to another instance is not reused. If Zotero rejects a stored key (`401`), the CLI deletes it and asks for a new authorisation.
 
-`zlb status` mostra `remembered_authorization: true` quando trova una cache per l'istanza corrente; questo indica la presenza della chiave, non ne prova ancora la validità. Si possono revocare le autorizzazioni ricordate in Zotero: **Settings → Advanced → Clear Write Authorizations**. La chiave non va copiata in un repository o condivisa con altri utenti. La [documentazione ufficiale dell'API locale](https://www.zotero.org/support/dev/web_api/v3/local_api) descrive il prompt e la revoca.
+`zlb status` shows `remembered_authorization: true` when it finds a cache for the current instance; this indicates that a key exists, not yet that it is valid. Remembered authorisations can be revoked in Zotero: **Settings → Advanced → Clear Write Authorizations**. Never copy the key into a repository or share it with other users. The [official local API documentation](https://www.zotero.org/support/dev/web_api/v3/local_api) describes the prompt and revocation.
 
-## Ricerca
+## Search
 
 ```bash
 ./zlb search --collection "My papers" --q "credit risk"
@@ -175,17 +177,17 @@ La cache predefinita è `~/.config/zotero_llm_bridge/auth.json` su Linux/macOS o
 ./zlb search --tag QEF --tag PMI --start 20 --limit 20
 ```
 
-`--collection` accetta la chiave a otto caratteri o un nome esatto e univoco. Filtri diversi si combinano; più `--tag` richiedono tutti i tag (AND). Nelle espressioni di tag e tipo item, `||` significa OR e il prefisso `-` esclude un valore. `--q` è la ricerca testuale di Zotero, che tratta la stringa come frase; non interpreta operatori booleani generici. `--qmode everything` estende la ricerca al testo integrale indicizzato. I risultati sono paginati con `--start` e `--limit` (massimo 100 per pagina). `--top` esclude gli allegati figli.
+`--collection` accepts the eight-character key or an exact, unique name. Different filters combine; several `--tag` require all tags (AND). In tag and item-type expressions, `||` means OR and a `-` prefix excludes a value. `--q` is Zotero's quick search, which treats the string as a phrase; it does not interpret generic boolean operators. `--qmode everything` extends the search to the indexed full text. Results are paginated with `--start` and `--limit` (at most 100 per page). `--top` excludes child attachments.
 
-### Ricerca filtrata da un LLM locale e confronto fra due giudici
+### Full-text search filtered by a local LLM, and two-judge comparison
 
-La ricerca full-text di Zotero trova anche omonimi (per esempio «Epic» think tank, Epic Games, «epic» aggettivo).
-`screen` estrae dagli allegati trovati i passi attorno ai termini indicati e chiede a un modello locale Ollama se ogni allegato parla davvero del soggetto descritto in `--about`.
-Per impostazione predefinita `screen` privilegia il recall: si chiede al modello di rispondere «sì» nel dubbio e un errore del modello conta come corrispondenza; `--strict` privilegia la precisione.
-Le `--phrase` (maiuscole indifferenti) valgono come corrispondenze certe e non passano dal modello; i `--term` sono parole intere con maiuscole rispettate.
-Il modello predefinito è `qwen3.8:27b-iq3-mtp` (variabile `ZLB_SCREEN_MODEL`): gli stessi pesi di `qwen3.8:27b-iq3` con la testa MTP, usata per la decodifica speculativa con 2 token di bozza (`ZLB_MTP_DRAFT`, 0 la disattiva); su 142 giudizi reali stessi sì/no del modello senza MTP, tempo −15%.
-Il modello si crea dal GGUF di ISTA-DASLab con un Modelfile Ollama che carica anche la testa MTP.
-zlb accetta solo un Ollama su `localhost`, così i testi non lasciano la macchina.
+Zotero full-text search also finds homonyms (for example the "Epic" think tank, Epic Games, the adjective "epic").
+`screen` extracts passages around the given terms from the attachments found and asks a local Ollama model whether each attachment is really about the subject described in `--about`.
+By default `screen` favours recall: the model is asked to answer "yes" when in doubt and a model error counts as a match; `--strict` favours precision.
+`--phrase` matches (case-insensitive) count as certain and skip the model; `--term` values are whole words, case-sensitive.
+The default model is `qwen3.8:27b-iq3-mtp` (variable `ZLB_SCREEN_MODEL`): the same weights as `qwen3.8:27b-iq3` plus the MTP head, used for speculative decoding with 2 draft tokens (`ZLB_MTP_DRAFT`, 0 disables it); on 142 real judgments it gave the same yes/no as the model without MTP, 15% faster.
+The model is built from the ISTA-DASLab GGUF with an Ollama Modelfile that also loads the MTP head.
+zlb only accepts an Ollama on `localhost`, so texts never leave the machine.
 
 ```bash
 ./zlb screen --q "Epic Draghi" \
@@ -195,19 +197,19 @@ zlb accetta solo un Ollama su `localhost`, così i testi non lasciano la macchin
 ./zlb compare --screen screen.json --verdicts other.json --output compare.json
 ```
 
-`--snippets` scrive gli stessi passi senza i giudizi del modello locale: un secondo giudice (per esempio l'LLM che guida la sessione) li valuta alla cieca e scrive `other.json` nella forma `{"KEY8": {"match": true, "reason": "..."}}`.
-`compare` riporta accordo, casi trovati solo dal modello locale, casi trovati solo dall'altro giudice e item non giudicati.
-I disaccordi vanno risolti leggendo il documento.
-Con `--tag NOME` (ripetibile) `screen` aggiunge subito il tag a ogni corrispondenza (frase certa o «sì» del modello), senza togliere altri tag; i tag sbagliati si tolgono con `zlb untag` o a mano in Zotero.
-Senza `--tag`, nessuna scrittura: i tag si mettono dopo la verifica con `zlb tag`.
+`--snippets` writes the same passages without the local model's verdicts: a second judge (for example the LLM driving the session) assesses them blind and writes `other.json` as `{"KEY8": {"match": true, "reason": "..."}}`.
+`compare` reports agreement, cases found only by the local model, cases found only by the other judge, and items not judged.
+Disagreements are resolved by reading the document.
+With `--tag NAME` (repeatable) `screen` immediately tags every match (certain phrase or model "yes"), without removing other tags; wrong tags are removed with `zlb untag` or by hand in Zotero.
+Without `--tag`, nothing is written: tags are added after review with `zlb tag`.
 
-### Ricerca semantica su molti PDF
+### Semantic search over many PDFs
 
-Per domande sul contenuto dei paper, è consigliato un indice semantico separato: estrarre il testo degli allegati Zotero, dividerlo in chunk con pagina o posizione, calcolare gli embedding e ingerirli in shard FAISS. Una mappa persistente deve collegare ogni chunk alla chiave dell'allegato, alla scheda madre, al percorso del PDF e alla posizione nel documento. Conservare anche un hash del file per aggiornare o invalidare i chunk quando il PDF cambia.
+For questions about paper content, a separate semantic index is recommended: extract the text of Zotero attachments, split it into chunks with page or position, compute embeddings and ingest them into FAISS shards. A persistent map should link each chunk to the attachment key, the parent item, the PDF path and the position in the document. Keep a file hash too, to update or invalidate chunks when the PDF changes.
 
-Il flusso di ricerca può combinare i due livelli: prima restringere per raccolta, tag, tipo e metadati tramite API Zotero; poi cercare semanticamente nei chunk degli allegati selezionati e riportare sempre il passo, la pagina e la scheda originale. Il risultato semantico è una pista da verificare sul PDF, non un metadato Zotero. `ZoteroLLMBridge` espone oggi il livello API; non costruisce né interroga gli shard FAISS. Se esiste già un corpus indicizzato, riusarlo prima di crearne un altro.
+The search flow can combine the two levels: first narrow by collection, tag, type and metadata through the Zotero API; then search semantically in the chunks of the selected attachments, always reporting passage, page and original item. A semantic hit is a lead to check on the PDF, not Zotero metadata. `ZoteroLLMBridge` currently exposes the API level; it does not build or query FAISS shards. If an indexed corpus already exists, reuse it before creating another.
 
-## Raccolte e schede esistenti
+## Existing collections and items
 
 ```bash
 ./zlb ensure-collection --parent "My papers" --name "New collection"
@@ -216,62 +218,62 @@ Il flusso di ricerca può combinare i due livelli: prima restringere per raccolt
 ./zlb tag --tag Draghi --tag EPIC ABCD1234 EFGH5678
 ```
 
-`add` conserva le altre appartenenze. `move` toglie la scheda dalla raccolta sorgente e la aggiunge alla destinazione. La chiave può riferirsi anche a un allegato: il comando risale alla scheda madre. Le operazioni sono idempotenti e verificano il risultato via API.
+`add` keeps other collection memberships. `move` removes the item from the source collection and adds it to the target. The key may also refer to an attachment: the command climbs to the parent item. Operations are idempotent and verify the result via the API.
 
-`tag` aggiunge uno o più tag (`--tag` ripetibile) alle chiavi indicate, così come sono (scheda o allegato), senza togliere i tag esistenti; i tag già presenti sono saltati e il risultato è verificato via API. `untag` toglie solo i tag indicati (`--tag` ripetibile) dalle chiavi indicate, lascia gli altri tag e le schede, verifica via API: `./zlb untag --tag Draghi ABCD1234`.
+`tag` adds one or more tags (`--tag` repeatable) to the given keys as they are (item or attachment), without removing existing tags; tags already present are skipped and the result is verified via the API. `untag` removes only the given tags (`--tag` repeatable) from the given keys, leaves other tags and the items alone, and verifies via the API: `./zlb untag --tag Draghi ABCD1234`.
 
-## PDF
+## PDFs
 
 ```bash
 ./zlb upload --file /path/to/article.pdf --collection "New collection" --title "Article title"
 ./zlb upload --file /path/to/article.pdf --collection "New collection" --parent-item ABCD1234
 ```
 
-Il PDF originale resta sul disco. Prima di creare un allegato, `upload` controlla l'MD5 degli allegati PDF **nell'intera libreria** tramite un indice locale ricavato dall'API Zotero e conferma il candidato confrontando SHA-256 con il file nello storage. Se il PDF esiste già, aggiunge la scheda alla raccolta richiesta e restituisce `already_present` o `added_existing_pdf`, senza duplicare il file né cambiare titolo o tag. Se è indicato `--parent-item` ma la copia identica appartiene a un'altra scheda, si ferma e segnala le due chiavi. La prima costruzione dell'indice può richiedere alcuni minuti in una libreria grande; dopo, il CLI usa la versione della libreria per aggiornare solo gli allegati modificati. La cache `.zlb-attachment-index.json` resta locale ed è esclusa da Git.
+The original PDF stays on disk. Before creating an attachment, `upload` checks the MD5 of PDF attachments **across the whole library** through a local index built from the Zotero API, and confirms the candidate by comparing SHA-256 with the file in storage. If the PDF already exists, it adds the item to the requested collection and returns `already_present` or `added_existing_pdf`, without duplicating the file or changing title or tags. If `--parent-item` is given but the identical copy belongs to another item, it stops and reports both keys. Building the index the first time can take a few minutes in a large library; afterwards the CLI uses the library version to refresh only modified attachments. The `.zlb-attachment-index.json` cache stays local and is excluded from Git.
 
-Il limite di upload è 100 MB per file. Zotero assegna le chiavi a otto caratteri. `zlb` non avvia né corregge i metadati: il loro recupero e controllo si svolgono direttamente in Zotero.
+The upload limit is 100 MB per file. Zotero assigns the eight-character keys. `zlb` does not trigger or fix metadata retrieval: that is done directly in Zotero.
 
-### Evidenziare nel PDF i passaggi citati
+### Highlight quoted passages in the PDF
 
-`highlight` individua nel testo di un allegato PDF i passaggi dichiarati in un manifest JSON e ne calcola le coordinate. Per impostazione predefinita esegue soltanto un'anteprima; `--apply` crea in Zotero annotazioni `highlight` figlie dell'allegato.
+`highlight` locates the passages declared in a JSON manifest within the text of a PDF attachment and computes their coordinates. By default it only runs a dry-run; `--apply` creates `highlight` annotations in Zotero as children of the attachment.
 
 ```bash
 zlb highlight --manifest passages.json
 zlb highlight --manifest passages.json --color gray --apply
 ```
 
-Il formato è mostrato in [`examples/highlight_manifest.json`](examples/highlight_manifest.json). Il manifest indica la chiave dell'allegato Zotero e una lista `passages`. Ogni passaggio contiene:
+The format is shown in [`examples/highlight_manifest.json`](examples/highlight_manifest.json). The manifest gives the Zotero attachment key and a `passages` list. Each passage contains:
 
-- `id`, identificatore stabile;
-- `text`, per una frase esatta, oppure `start` e `end` per un intervallo più lungo;
-- `page`, facoltativo ma consigliato, come etichetta editoriale mostrata da Zotero;
-- `page_index`, facoltativo e con base zero, per limitare la ricerca a una pagina fisica quando tavole o intestazioni producono più corrispondenze.
-- `match_index`, facoltativo e con base zero, per scegliere esplicitamente una delle occorrenze rimaste dopo il filtro di pagina; va usato solo dopo aver controllato il dry-run.
+- `id`, a stable identifier;
+- `text`, for an exact sentence, or `start` and `end` for a longer span;
+- `page`, optional but recommended, the editorial page label shown by Zotero;
+- `page_index`, optional and zero-based, to restrict the search to one physical page when tables or headers produce several matches;
+- `match_index`, optional and zero-based, to pick one of the occurrences left after the page filter; use it only after checking the dry-run.
 
-`--attachment KEY8` può sostituire la chiave contenuta nel manifest. Il colore predefinito è il grigio Zotero `#aaaaaa`; sono accettati anche `yellow`, `red`, `green`, `blue`, `purple`, `magenta`, `orange` oppure un valore `#rrggbb`. Il tag predefinito è `zlb-citazione` e può essere cambiato con `--tag`.
+`--attachment KEY8` can override the key in the manifest. The default color is Zotero gray `#aaaaaa`; `yellow`, `red`, `green`, `blue`, `purple`, `magenta`, `orange` or any `#rrggbb` value are also accepted. The default tag is `zlb-citazione` and can be changed with `--tag`.
 
-La ricerca normalizza maiuscole, apostrofi, punteggiatura, legature e interruzioni di riga. Il numero di pagina dichiarato non viene usato come indice fisico: la frase viene cercata nel PDF e `page` resta l'etichetta editoriale. Questo evita errori dovuti a copertine e pagine iniziali non numerate. Se un passaggio manca o compare più volte, l'anteprima riporta `not-found` o `ambiguous` e `--apply` rifiuta l'intera scrittura. Le annotazioni create contengono un'impronta nel commento e una seconda esecuzione con lo stesso manifest le riconosce senza duplicarle.
+Matching normalises case, apostrophes, punctuation, ligatures and line breaks. The declared page number is not used as a physical index: the sentence is searched in the PDF and `page` remains the editorial label. This avoids errors caused by covers and unnumbered front pages. If a passage is missing or appears more than once, the dry-run reports `not-found` or `ambiguous` and `--apply` refuses the whole write. Created annotations carry a fingerprint in the comment, and a second run with the same manifest recognises them without duplicating.
 
-La funzione richiede `pdftotext` di Poppler nel `PATH`. Funziona sui PDF con testo e coordinate estraibili; per scansioni prive di OCR, testi distribuiti su più pagine o impaginazioni che confondono l'ordine di lettura occorre preparare o verificare manualmente i passaggi. `zlb` non interpreta autonomamente le parafrasi: un LLM o l'autore deve dichiarare nel manifest il passo sorgente effettivamente usato.
+The feature requires Poppler's `pdftotext` in `PATH`. It works on PDFs with extractable text and coordinates; for scans without OCR, passages spanning several pages or layouts that confuse reading order, prepare or check the passages by hand. `zlb` does not interpret paraphrases on its own: an LLM or the author must declare in the manifest the source passage actually used.
 
-### Se qualcosa è già presente
+### If something is already there
 
-- `ensure-collection` riusa la raccolta con lo stesso nome sotto lo stesso padre e restituisce `created: false`; se il nome è ambiguo, chiede una chiave a otto caratteri.
-- `add` non duplica l'appartenenza. `move` restituisce `changed: 0` se la scheda è già nella destinazione e non è più nella sorgente. Nessuno dei due comandi modifica i tag.
-- `upload` riusa un PDF identico già presente in libreria. I `--tag` sono applicati solo quando viene creato un nuovo allegato; non aggiornano una scheda preesistente.
-- `apply` cerca prima la scheda per chiave, DOI o titolo e aggiunge alla raccolta quella con PDF già disponibile. Le corrispondenze bibliografiche ambigue richiedono verifica; il CLI non corregge i metadati.
+- `ensure-collection` reuses the collection with the same name under the same parent and returns `created: false`; if the name is ambiguous, it asks for an eight-character key.
+- `add` does not duplicate membership. `move` returns `changed: 0` if the item is already in the target and no longer in the source. Neither command changes tags.
+- `upload` reuses an identical PDF already in the library. `--tag` values are applied only when a new attachment is created; they do not update an existing item.
+- `apply` first looks for the item by key, DOI or title and adds to the collection the one with a PDF already available. Ambiguous bibliographic matches need review; the CLI does not fix metadata.
 
-## Riferimenti e BibTeX
+## References and BibTeX
 
-Manifest JSON di esempio:
+Example JSON manifest:
 
 ```json
 {
-  "source": {"title": "Paper di origine"},
+  "source": {"title": "Source paper"},
   "references": [
-    {"id": "1", "citekey": "rossi2025", "type": "article", "title": "Titolo", "author": "Rossi, Mario", "year": "2025", "doi": "10.1234/example", "zotero_key": "ABCD1234"},
-    {"id": "2", "citekey": "bianchi2024", "title": "Altro titolo", "pdf_path": "/path/to/another.pdf"},
-    {"id": "3", "citekey": "verdi2023", "title": "Terzo titolo", "pdf_url": "https://example.org/paper.pdf"}
+    {"id": "1", "citekey": "rossi2025", "type": "article", "title": "Title", "author": "Rossi, Mario", "year": "2025", "doi": "10.1234/example", "zotero_key": "ABCD1234"},
+    {"id": "2", "citekey": "bianchi2024", "title": "Another title", "pdf_path": "/path/to/another.pdf"},
+    {"id": "3", "citekey": "verdi2023", "title": "Third title", "pdf_url": "https://example.org/paper.pdf"}
   ]
 }
 ```
@@ -281,18 +283,18 @@ Manifest JSON di esempio:
 ./zlb bib --manifest /path/to/references.json --collection "New collection" --output /path/to/references.bib
 ```
 
-`apply` cerca per chiave Zotero, DOI o titolo nell'intera libreria; aggiunge le schede già presenti e importa PDF locali o da URL HTTPS. Aggiorna il manifest dopo ogni importazione riuscita, così può riprendere dopo un'interruzione. `bib` **con manifest** richiede `--output`, mette le voci senza PDF all'inizio e scrive `key8` e percorso per quelle risolte. `bib` **senza manifest** esporta direttamente la raccolta con i metadati correnti di Zotero. Il CLI controlla la presenza del PDF, non l'identità scientifica di un URL: verificare fonte, titolo, autori, anno e DOI prima di associare il PDF e pubblicare il BibTeX.
+`apply` searches the whole library by Zotero key, DOI or title; it adds items already present and imports local PDFs or PDFs from HTTPS URLs. It updates the manifest after each successful import, so it can resume after an interruption. `bib` **with a manifest** requires `--output`, puts entries without a PDF first and writes `key8` and path for the resolved ones. `bib` **without a manifest** exports the collection directly with Zotero's current metadata. The CLI checks that the PDF exists, not the scholarly identity of a URL: verify source, title, authors, year and DOI before linking the PDF and publishing the BibTeX.
 
-## Per altri LLM
+## For other LLMs
 
-Fornire questa guida e il comando `zlb` disponibile nel `PATH`, oppure il suo percorso assoluto. Il CLI richiede Python 3.10+ e la libreria standard. Su Linux e macOS si può usare il wrapper Bash `zlb`; su Windows si può eseguire `py -3 PY\\zotero_llm_bridge.py --help` dalla cartella del pacchetto. `pyproject.toml` offre un entry point installabile `zlb` su tutte le piattaforme. `zlb --help` mostra tutti gli argomenti.
+Provide this guide and the `zlb` command on `PATH`, or its absolute path. The CLI needs Python 3.10+ and the standard library only. On Linux and macOS use the Bash wrapper `zlb`; on Windows run `py -3 PY\\zotero_llm_bridge.py --help` from the package folder. `pyproject.toml` provides an installable `zlb` entry point on all platforms. `zlb --help` shows every argument.
 
-## Sviluppo
+## Development
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-I test non richiedono Zotero e coprono il riuso di un PDF già presente in libreria e l'ordine delle voci nel BibTeX. Prima di una pubblicazione pubblica occorre verificare il pacchetto sulle piattaforme dichiarate; finora è stato eseguito dal vivo solo su Linux.
+The tests need no Zotero and cover reuse of a PDF already in the library and the order of BibTeX entries. Before a public release the package should be checked on the declared platforms; so far it has been run live only on Linux.
 
-Esempi basati su un caso d'uso reale sono in `examples/uso_20260922.md`.
+A worked example based on a real use case is in `examples/uso_20260922.md` (in Italian).
