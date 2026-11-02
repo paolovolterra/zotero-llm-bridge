@@ -54,6 +54,14 @@ La versione 0.2.0 è archiviata su [Zenodo](https://doi.org/10.5281/zenodo.23875
 
 La versione 0.2.0 aggiunge `tag`, `untag`, `screen`, `compare` e `highlight` ed è stata verificata dal vivo su Linux con Zotero 10.0.7.
 
+SHA-256 dello ZIP `zotero-llm-bridge-v0.2.0.zip` scaricato da Zenodo:
+
+```text
+6fa3834a096e121718ec934b78b3539d5edf7bb190f59ea5fc82b39efda1fd55
+```
+
+Verifica: `sha256sum zotero-llm-bridge-v0.2.0.zip` su Linux, `shasum -a 256 zotero-llm-bridge-v0.2.0.zip` su macOS oppure `Get-FileHash .\zotero-llm-bridge-v0.2.0.zip -Algorithm SHA256` in PowerShell. L'hash si riferisce allo ZIP di Zenodo, non al codice aggiornato su GitHub.
+
 ## Installazione
 
 Servono Zotero 10 aperto, l'opzione **Settings → Advanced → Allow other applications on this computer to communicate with Zotero** attiva e Python 3.10 o successivo. Non serve installare un'estensione `.xpi` né creare una chiave su zotero.org. Il repository è pubblico e si può clonare senza un account GitHub.
