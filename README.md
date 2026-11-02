@@ -1,6 +1,32 @@
 # zotero-llm-bridge (`zlb`)
 
+[![Release](https://img.shields.io/github/v/release/paolovolterra/zotero-llm-bridge)](https://github.com/paolovolterra/zotero-llm-bridge/releases/latest)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22900666.svg)](https://doi.org/10.5281/zenodo.22900666)
+![Zotero 10](https://img.shields.io/badge/Zotero-10-cc2936)
+[![License: 0BSD](https://img.shields.io/badge/license-0BSD-blue)](LICENSE)
+
 CLI locale per Zotero 10, utilizzabile da terminale, script e altri LLM su Linux, macOS e Windows. Il comando breve è `zlb`. Usa `http://localhost:23119/api/` con Zotero aperto. Tutte le scritture passano dall'API locale; non modifica i database SQLite e non usa zotero.org.
+
+## Novità nella 0.2.0
+
+> [!NOTE]
+> Versione 0.2.0 del 2026-11-02, verificata dal vivo con **Zotero 10.0.7** su Linux. Archivio su Zenodo: [10.5281/zenodo.23875898](https://doi.org/10.5281/zenodo.23875898). Note complete nella [release](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.2.0).
+
+| Comando | Che cosa fa | Scrive in Zotero? |
+|---|---|---|
+| [`highlight`](#evidenziare-nel-pdf-i-passaggi-citati) | Trova nel PDF di un allegato le frasi citate (dichiarate in un manifest) e crea evidenziazioni native di Zotero, grigie per impostazione predefinita | Solo con `--apply`, dopo un'anteprima in cui ogni passaggio è univoco |
+| [`screen`](#ricerca-filtrata-da-un-llm-locale-e-confronto-fra-due-giudici) | Filtra i risultati della ricerca full-text con un modello Ollama locale (solo `localhost`), scartando omonimi; orientato al recall, `--strict` per la precisione | Solo con `--tag` |
+| [`compare`](#ricerca-filtrata-da-un-llm-locale-e-confronto-fra-due-giudici) | Confronta i giudizi di `screen` con quelli di un secondo giudice cieco e riporta accordo e disaccordi | No |
+| [`tag`](#raccolte-e-schede-esistenti) / [`untag`](#raccolte-e-schede-esistenti) | Aggiunge o toglie tag nominati su schede o allegati, senza toccare gli altri; scrittura a lotti di 50 | Sì |
+
+```bash
+zlb highlight --manifest passages.json            # anteprima: exact / ambiguous / not-found
+zlb highlight --manifest passages.json --apply    # crea le evidenziazioni
+zlb screen --q "Epic Draghi" --about "the Brussels think tank EPIC" --term EPIC --output screen.json
+zlb tag --tag EPIC ABCD1234 && zlb untag --tag EPIC ABCD1234
+```
+
+Restano invariati i principi: nessuna cancellazione, nessuna scrittura su SQLite, solo API locale.
 
 ## Da una richiesta all'LLM alla raccolta Zotero
 
