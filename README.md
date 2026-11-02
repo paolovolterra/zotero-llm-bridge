@@ -50,15 +50,9 @@ Il codice è distribuito con licenza [0BSD](LICENSE): si può usare, copiare, mo
 
 ## Citazione e archivio
 
-La versione 0.1.0 è archiviata su [Zenodo](https://doi.org/10.5281/zenodo.22900667) con DOI `10.5281/zenodo.22900667`. Il repository GitHub contiene il codice e gli aggiornamenti; il DOI identifica lo snapshot pubblicato. I metadati di citazione per GitHub sono in [CITATION.cff](CITATION.cff).
+La versione 0.2.0 è archiviata su [Zenodo](https://doi.org/10.5281/zenodo.23875898) con DOI `10.5281/zenodo.23875898`; il DOI di concetto [`10.5281/zenodo.22900666`](https://doi.org/10.5281/zenodo.22900666) punta sempre all'ultima versione. La versione 0.1.0 resta disponibile con DOI `10.5281/zenodo.22900667`. Il repository GitHub contiene il codice e gli aggiornamenti; il DOI di versione identifica lo snapshot pubblicato. I metadati di citazione per GitHub sono in [CITATION.cff](CITATION.cff).
 
-SHA-256 dello ZIP `zotero-llm-bridge-v0.1.0.zip` scaricato da Zenodo:
-
-```text
-2415d629c2f428d74f9730268955753baf0648e3856b25c00647553d51e063ac
-```
-
-Verifica: `sha256sum zotero-llm-bridge-v0.1.0.zip` su Linux, `shasum -a 256 zotero-llm-bridge-v0.1.0.zip` su macOS oppure `Get-FileHash .\zotero-llm-bridge-v0.1.0.zip -Algorithm SHA256` in PowerShell. L'hash si riferisce allo ZIP di Zenodo, non al codice aggiornato su GitHub.
+La versione 0.2.0 aggiunge `tag`, `untag`, `screen`, `compare` e `highlight` ed è stata verificata dal vivo su Linux con Zotero 10.0.7.
 
 ## Installazione
 
@@ -92,7 +86,7 @@ Se `zlb` non è riconosciuto, aggiungere al `PATH` la directory `Scripts` dell'i
 
 ### Da un archivio del codice
 
-Se si dispone dello ZIP del codice, estrarlo e aprire un terminale nella cartella `zotero-llm-bridge-v0.1.0`. Su Linux/macOS eseguire `./zlb status`; su Windows eseguire `py -3 PY\zotero_llm_bridge.py status` oppure `py -3 -m pip install --user .` e poi `zlb status`. L'archivio contiene una copia autonoma del CLI.
+Se si dispone dello ZIP del codice, estrarlo e aprire un terminale nella cartella `zotero-llm-bridge-v0.2.0`. Su Linux/macOS eseguire `./zlb status`; su Windows eseguire `py -3 PY\zotero_llm_bridge.py status` oppure `py -3 -m pip install --user .` e poi `zlb status`. L'archivio contiene una copia autonoma del CLI.
 
 ## Modello d'uso
 
@@ -128,7 +122,7 @@ I comandi restituiscono JSON. Le letture non richiedono autorizzazione; le scrit
 
 ### Autorizzazione delle scritture
 
-Alla prima operazione che modifica Zotero (`ensure-collection`, `add`, `move`, `upload` o `apply`), il client aperto mostra una richiesta per **ZoteroLLMBridge**:
+Alla prima operazione che modifica Zotero (`ensure-collection`, `add`, `move`, `upload`, `highlight --apply` o `apply`), il client aperto mostra una richiesta per **ZoteroLLMBridge**:
 
 - **Allow** autorizza una sola scrittura. Un'operazione composta da più scritture, come l'upload di un PDF, può richiedere altre conferme.
 - **Always Allow** restituisce una chiave riutilizzabile. `zlb` la salva localmente e le scritture successive non mostrano un nuovo prompt finché l'autorizzazione resta valida.
@@ -156,7 +150,7 @@ La ricerca full-text di Zotero trova anche omonimi (per esempio «Epic» think t
 Per impostazione predefinita `screen` privilegia il recall: si chiede al modello di rispondere «sì» nel dubbio e un errore del modello conta come corrispondenza; `--strict` privilegia la precisione.
 Le `--phrase` (maiuscole indifferenti) valgono come corrispondenze certe e non passano dal modello; i `--term` sono parole intere con maiuscole rispettate.
 Il modello predefinito è `qwen3.8:27b-iq3-mtp` (variabile `ZLB_SCREEN_MODEL`): gli stessi pesi di `qwen3.8:27b-iq3` con la testa MTP, usata per la decodifica speculativa con 2 token di bozza (`ZLB_MTP_DRAFT`, 0 la disattiva); su 142 giudizi reali stessi sì/no del modello senza MTP, tempo −15%.
-Il modello si crea dal GGUF di ISTA-DASLab con il Modelfile in `ClaudeCode/2026/202610/20261009_Dulia/PY/Modelfile.iq3-mtp`.
+Il modello si crea dal GGUF di ISTA-DASLab con un Modelfile Ollama che carica anche la testa MTP.
 zlb accetta solo un Ollama su `localhost`, così i testi non lasciano la macchina.
 
 ```bash
@@ -202,6 +196,29 @@ Il flusso di ricerca può combinare i due livelli: prima restringere per raccolt
 Il PDF originale resta sul disco. Prima di creare un allegato, `upload` controlla l'MD5 degli allegati PDF **nell'intera libreria** tramite un indice locale ricavato dall'API Zotero e conferma il candidato confrontando SHA-256 con il file nello storage. Se il PDF esiste già, aggiunge la scheda alla raccolta richiesta e restituisce `already_present` o `added_existing_pdf`, senza duplicare il file né cambiare titolo o tag. Se è indicato `--parent-item` ma la copia identica appartiene a un'altra scheda, si ferma e segnala le due chiavi. La prima costruzione dell'indice può richiedere alcuni minuti in una libreria grande; dopo, il CLI usa la versione della libreria per aggiornare solo gli allegati modificati. La cache `.zlb-attachment-index.json` resta locale ed è esclusa da Git.
 
 Il limite di upload è 100 MB per file. Zotero assegna le chiavi a otto caratteri. `zlb` non avvia né corregge i metadati: il loro recupero e controllo si svolgono direttamente in Zotero.
+
+### Evidenziare nel PDF i passaggi citati
+
+`highlight` individua nel testo di un allegato PDF i passaggi dichiarati in un manifest JSON e ne calcola le coordinate. Per impostazione predefinita esegue soltanto un'anteprima; `--apply` crea in Zotero annotazioni `highlight` figlie dell'allegato.
+
+```bash
+zlb highlight --manifest passages.json
+zlb highlight --manifest passages.json --color gray --apply
+```
+
+Il formato è mostrato in [`examples/highlight_manifest.json`](examples/highlight_manifest.json). Il manifest indica la chiave dell'allegato Zotero e una lista `passages`. Ogni passaggio contiene:
+
+- `id`, identificatore stabile;
+- `text`, per una frase esatta, oppure `start` e `end` per un intervallo più lungo;
+- `page`, facoltativo ma consigliato, come etichetta editoriale mostrata da Zotero;
+- `page_index`, facoltativo e con base zero, per limitare la ricerca a una pagina fisica quando tavole o intestazioni producono più corrispondenze.
+- `match_index`, facoltativo e con base zero, per scegliere esplicitamente una delle occorrenze rimaste dopo il filtro di pagina; va usato solo dopo aver controllato il dry-run.
+
+`--attachment KEY8` può sostituire la chiave contenuta nel manifest. Il colore predefinito è il grigio Zotero `#aaaaaa`; sono accettati anche `yellow`, `red`, `green`, `blue`, `purple`, `magenta`, `orange` oppure un valore `#rrggbb`. Il tag predefinito è `zlb-citazione` e può essere cambiato con `--tag`.
+
+La ricerca normalizza maiuscole, apostrofi, punteggiatura, legature e interruzioni di riga. Il numero di pagina dichiarato non viene usato come indice fisico: la frase viene cercata nel PDF e `page` resta l'etichetta editoriale. Questo evita errori dovuti a copertine e pagine iniziali non numerate. Se un passaggio manca o compare più volte, l'anteprima riporta `not-found` o `ambiguous` e `--apply` rifiuta l'intera scrittura. Le annotazioni create contengono un'impronta nel commento e una seconda esecuzione con lo stesso manifest le riconosce senza duplicarle.
+
+La funzione richiede `pdftotext` di Poppler nel `PATH`. Funziona sui PDF con testo e coordinate estraibili; per scansioni prive di OCR, testi distribuiti su più pagine o impaginazioni che confondono l'ordine di lettura occorre preparare o verificare manualmente i passaggi. `zlb` non interpreta autonomamente le parafrasi: un LLM o l'autore deve dichiarare nel manifest il passo sorgente effettivamente usato.
 
 ### Se qualcosa è già presente
 

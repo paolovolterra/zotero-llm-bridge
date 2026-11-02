@@ -13,6 +13,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
+import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlencode, urlparse
 from urllib.request import Request, urlopen, url2pathname
@@ -37,6 +39,9 @@ AUTH_FILE = default_auth_file()
 INDEX_FILE = AUTH_FILE.with_name(".zlb-attachment-index.json")
 KEY_RE = re.compile(r"^[A-Z0-9]{8}$")
 WRITE_BATCH = 50  # Zotero rejects larger item writes with HTTP 413
+HIGHLIGHT_COLORS = {"gray": "#aaaaaa", "grey": "#aaaaaa", "yellow": "#ffd400", "red": "#ff6666",
+                    "green": "#5fb236", "blue": "#2ea8e5", "purple": "#a28ae5",
+                    "magenta": "#e56eee", "orange": "#f19837"}
 
 
 class ZoteroError(RuntimeError):
@@ -861,10 +866,180 @@ def apply_references(api: Zotero, path: Path, collection: str, output: Path | No
     return report
 
 
+def normalized_tokens(value: str):
+    value = unicodedata.normalize("NFKD", value).replace("’", "'")
+    return re.findall(r"[a-z0-9]+", value.casefold())
+
+
+def _token_hits(haystack, needle, start=0):
+    return [i for i in range(start, len(haystack) - len(needle) + 1) if haystack[i:i + len(needle)] == needle]
+
+
+def pdf_words_by_page(pdf: Path):
+    """Return PDF words and geometry using Poppler's pdftotext -bbox-layout."""
+    if not pdf.is_file():
+        raise ZoteroError(f"PDF file is unavailable: {pdf}")
+    with tempfile.TemporaryDirectory(prefix="zlb_highlight_") as directory:
+        bbox = Path(directory) / "bbox.html"
+        try:
+            subprocess.run(["pdftotext", "-bbox-layout", str(pdf), str(bbox)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        except FileNotFoundError as exc:
+            raise ZoteroError("highlight requires Poppler pdftotext in PATH") from exc
+        except subprocess.CalledProcessError as exc:
+            raise ZoteroError(f"pdftotext failed: {exc.stderr.strip()}") from exc
+        try:
+            xml_text = bbox.read_text(errors="replace")
+            # Some embedded fonts make pdftotext emit XML-forbidden C0 controls.
+            xml_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", xml_text)
+            root = ET.fromstring(xml_text)
+        except (ET.ParseError, OSError) as exc:
+            raise ZoteroError(f"Cannot parse pdftotext geometry: {exc}") from exc
+        namespace = {"x": "http://www.w3.org/1999/xhtml"}
+        pages = []
+        for page_index, page in enumerate(root.findall(".//x:page", namespace)):
+            height = float(page.attrib["height"])
+            words, seen, uid = [], set(), 0
+            for line_no, line in enumerate(page.findall(".//x:line", namespace)):
+                for word in line.findall("x:word", namespace):
+                    signature = (word.text or "", round(float(word.attrib["xMin"]), 2),
+                                 round(float(word.attrib["yMin"]), 2), round(float(word.attrib["xMax"]), 2),
+                                 round(float(word.attrib["yMax"]), 2))
+                    if signature in seen:
+                        continue
+                    seen.add(signature)
+                    uid += 1
+                    base = {"uid": uid, "text": word.text or "", "line": line_no,
+                            "x1": float(word.attrib["xMin"]), "y1": float(word.attrib["yMin"]),
+                            "x2": float(word.attrib["xMax"]), "y2": float(word.attrib["yMax"]), "height": height}
+                    for token in normalized_tokens(word.text or ""):
+                        words.append({**base, "token": token})
+            pages.append((page_index, words))
+        return pages
+
+
+def locate_passages(pdf: Path, passages: list[dict]):
+    pages = pdf_words_by_page(pdf)
+    results = []
+    for number, passage in enumerate(passages, 1):
+        passage_id = str(passage.get("id") or number)
+        text = passage.get("text")
+        start_text = text or passage.get("start")
+        end_text = text or passage.get("end")
+        if not start_text or not end_text:
+            raise ZoteroError(f"Passage {passage_id}: give text, or both start and end")
+        start_tokens, end_tokens = normalized_tokens(start_text), normalized_tokens(end_text)
+        matches = []
+        for page_index, words in pages:
+            requested_index = passage.get("page_index", passage.get("pageIndex"))
+            if requested_index is not None and page_index != int(requested_index):
+                continue
+            tokens = [word["token"] for word in words]
+            for start in _token_hits(tokens, start_tokens):
+                ends = _token_hits(tokens, end_tokens, start)
+                if not ends:
+                    continue
+                end = ends[0] + len(end_tokens)
+                token_hit = words[start:end]
+                hit = list({word["uid"]: word for word in token_hit}.values())
+                rects = []
+                for line_no in dict.fromkeys(word["line"] for word in hit):
+                    line = [word for word in hit if word["line"] == line_no]
+                    height = line[0]["height"]
+                    rects.append([round(min(w["x1"] for w in line), 4), round(height - max(w["y2"] for w in line), 4),
+                                  round(max(w["x2"] for w in line), 4), round(height - min(w["y1"] for w in line), 4)])
+                matches.append({"pageIndex": page_index, "text": " ".join(word["text"] for word in hit), "rects": rects})
+        total_matches = len(matches)
+        match_index = passage.get("match_index", passage.get("matchIndex"))
+        if match_index is not None and matches:
+            match_index = int(match_index)
+            matches = [matches[match_index]] if 0 <= match_index < len(matches) else []
+        status = "exact" if len(matches) == 1 else ("not-found" if not matches else "ambiguous")
+        result = {"id": passage_id, "status": status, "matches": total_matches}
+        if match_index is not None:
+            result["match_index"] = match_index
+        if len(matches) == 1:
+            result.update(matches[0])
+            result["pageLabel"] = str(passage.get("page") or passage.get("pageLabel") or result["pageIndex"] + 1)
+        results.append(result)
+    return results
+
+
+def highlight_passages(api: Zotero, manifest_path: Path, attachment_key: str | None, color: str,
+                       tag: str, apply: bool = False):
+    manifest = json.loads(manifest_path.read_text())
+    passages = manifest.get("passages")
+    if not isinstance(passages, list) or not passages:
+        raise ZoteroError("Highlight manifest needs a non-empty passages list")
+    key = attachment_key or manifest.get("attachment") or manifest.get("attachment_key")
+    if not key or not KEY_RE.fullmatch(key):
+        raise ZoteroError("Give an eight-character PDF attachment key with --attachment or in the manifest")
+    attachment = api.item(key)
+    if attachment["data"].get("itemType") != "attachment" or attachment["data"].get("contentType") != "application/pdf":
+        raise ZoteroError(f"{key} is not a PDF attachment")
+    pdf = attachment_path(attachment)
+    if not pdf:
+        raise ZoteroError(f"Local PDF for attachment {key} is unavailable")
+    resolved_color = HIGHLIGHT_COLORS.get(color.casefold(), color.lower())
+    if not re.fullmatch(r"#[0-9a-f]{6}", resolved_color):
+        raise ZoteroError("--color must be a supported name or #rrggbb")
+    located = locate_passages(pdf, passages)
+    report = {"attachment": key, "file": str(pdf), "color": resolved_color, "tag": tag,
+              "apply": apply, "results": located,
+              "counts": {status: sum(x["status"] == status for x in located) for status in ("exact", "ambiguous", "not-found")}}
+    if not apply:
+        return report
+    unresolved = [x["id"] for x in located if x["status"] != "exact"]
+    if unresolved:
+        raise ZoteroError(f"Refusing to write: unresolved passages: {', '.join(unresolved)}")
+    existing = []
+    start = 0
+    while True:
+        path = "/users/0/items?" + urlencode({"itemType": "annotation", "tag": tag, "limit": 100, "start": start})
+        _, headers, page = api.request("GET", path)
+        existing.extend(item for item in page if item["data"].get("parentItem") == key)
+        start += len(page)
+        if start >= int(headers.get("Total-Results", len(page))) or not page:
+            break
+    existing_markers = {item["data"].get("annotationComment", "") for item in existing}
+    source = str(manifest.get("source") or manifest_path)
+    pending = []
+    skipped = []
+    for item in located:
+        digest = hashlib.sha256((key + "\0" + " ".join(normalized_tokens(item["text"])) + "\0" + str(item["pageIndex"])).encode()).hexdigest()[:16]
+        marker = f"zlb highlight:{digest} — {source} — {item['id']}"
+        if marker in existing_markers:
+            skipped.append(item["id"])
+            continue
+        pending.append({"itemType": "annotation", "parentItem": key, "annotationType": "highlight",
+                        "annotationAuthorName": "", "annotationText": item["text"], "annotationComment": marker,
+                        "annotationColor": resolved_color, "annotationPageLabel": item["pageLabel"],
+                        "annotationSortIndex": f"{item['pageIndex']:05d}|000000|00000",
+                        "annotationPosition": json.dumps({"pageIndex": item["pageIndex"], "rects": item["rects"]}, separators=(",", ":")),
+                        "tags": [{"tag": tag}], "relations": {}})
+    created = []
+    for batch_start in range(0, len(pending), WRITE_BATCH):
+        batch = pending[batch_start:batch_start + WRITE_BATCH]
+        response = api.post("/users/0/items", json.dumps(batch, ensure_ascii=False).encode(), "application/json",
+                            {"Zotero-Write-Token": uuid4().hex})
+        if response.get("failed") or len(response.get("success", {})) != len(batch):
+            raise ZoteroError(f"Annotation creation failed: {response}")
+        created.extend(response["success"][str(i)] for i in range(len(batch)))
+    for created_key in created:
+        data = api.item(created_key)["data"]
+        if data.get("parentItem") != key or data.get("annotationColor") != resolved_color:
+            raise ZoteroError(f"Annotation verification failed for {created_key}")
+    report["created"] = created
+    report["skipped_existing"] = skipped
+    report["counts"]["created"] = len(created)
+    report["counts"]["skipped_existing"] = len(skipped)
+    return report
+
+
 def expand_shortcut(argv):
     args = list(argv)
     offset = 1 if args[:1] == ["--json"] else 0
-    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "tag", "untag", "screen", "compare", "upload", "bib", "apply"}
+    commands = {"status", "collections", "search", "ensure-collection", "add", "move", "tag", "untag", "screen", "compare", "upload", "highlight", "bib", "apply"}
     if len(args) > offset and not args[offset].startswith("-") and args[offset] not in commands:
         args[offset:offset + 1] = ["search", "--collection", args[offset]]
     return args
@@ -926,6 +1101,12 @@ def main(argv=None):
     upload.add_argument("--title")
     upload.add_argument("--parent-item", help="Attach PDF to an existing bibliographic item")
     upload.add_argument("--tag", action="append", default=[])
+    highlight = sub.add_parser("highlight", help="Locate quoted passages in a Zotero PDF; dry-run unless --apply")
+    highlight.add_argument("--manifest", required=True, type=Path, help="JSON with attachment/source and passages")
+    highlight.add_argument("--attachment", help="PDF attachment key; overrides the manifest")
+    highlight.add_argument("--color", default="gray", help="Color name or #rrggbb; default gray")
+    highlight.add_argument("--tag", default="zlb-citazione", help="Tag added to annotations")
+    highlight.add_argument("--apply", action="store_true", help="Create annotations after an all-exact dry-run")
     bib = sub.add_parser("bib", help="Build BibTeX from a JSON manifest and the live collection")
     bib.add_argument("--manifest", type=Path, help="Optional manifest for missing-first project bibliography")
     bib.add_argument("--collection", required=True)
@@ -980,6 +1161,8 @@ def main(argv=None):
                 write_json(args.output, result)
         elif args.command == "upload":
             result = api.upload_pdf(args.file, args.collection, args.title, args.tag, args.parent_item)
+        elif args.command == "highlight":
+            result = highlight_passages(api, args.manifest, args.attachment, args.color, args.tag, args.apply)
         elif args.command == "bib":
             if args.manifest:
                 if not args.output:

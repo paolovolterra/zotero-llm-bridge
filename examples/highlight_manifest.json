@@ -1,0 +1,18 @@
+{
+  "attachment": "ABCD1234",
+  "source": "OUT/index.qmd",
+  "passages": [
+    {
+      "id": "quoted-sentence",
+      "text": "The exact sentence quoted in the document.",
+      "page": "12"
+    },
+    {
+      "id": "supporting-paragraph",
+      "start": "The first words of the supporting paragraph",
+      "end": "the final words that were used",
+      "page": "18",
+      "page_index": 19
+    }
+  ]
+}

@@ -7,7 +7,7 @@ authors:
     given-names: Paolo
     orcid: "https://orcid.org/0009-0004-2229-7519"
 repository-code: "https://github.com/paolovolterra/zotero-llm-bridge"
-version: 0.1.0
-date-released: 2026-09-22
-doi: 10.5281/zenodo.22900667
+version: 0.2.0
+date-released: 2026-11-02
+doi: 10.5281/zenodo.22900666
 license: 0BSD

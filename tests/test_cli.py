@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "PY"))
 import zotero_llm_bridge
-from zotero_llm_bridge import Zotero, ZoteroError, blind_snippets, screen_hits, compare_verdicts, screen_items, text_windows, apply_references, build_bib, expand_shortcut, export_collection_bib
+from zotero_llm_bridge import Zotero, ZoteroError, blind_snippets, screen_hits, compare_verdicts, screen_items, text_windows, apply_references, build_bib, expand_shortcut, export_collection_bib, locate_passages, highlight_passages
 
 
 class FakeAPI:
@@ -50,6 +50,65 @@ class FakeAPI:
 
 
 class CLITests(unittest.TestCase):
+    def test_locate_passages_builds_bottom_origin_rects(self):
+        words = []
+        for uid, (text, x1, x2) in enumerate((("Quoted", 10, 40), ("words", 45, 75)), 1):
+            words.append({"uid": uid, "token": text.lower(), "text": text, "line": 0,
+                          "x1": x1, "y1": 20, "x2": x2, "y2": 30, "height": 100})
+        with patch.object(zotero_llm_bridge, "pdf_words_by_page", lambda pdf: [(2, words)]):
+            result = locate_passages(Path("paper.pdf"), [{"id": "q1", "text": "Quoted words", "page": "1"}])
+        self.assertEqual(result[0]["status"], "exact")
+        self.assertEqual(result[0]["pageIndex"], 2)
+        self.assertEqual(result[0]["pageLabel"], "1")
+        self.assertEqual(result[0]["rects"], [[10, 70, 75, 80]])
+
+    def test_locate_passages_can_select_page_and_occurrence(self):
+        def word(uid, token, x):
+            return {"uid": uid, "token": token, "text": token, "line": uid, "x1": x, "y1": 20,
+                    "x2": x + 5, "y2": 30, "height": 100}
+        pages = [(0, [word(1, "same", 10)]), (2, [word(1, "same", 20), word(2, "same", 30)])]
+        with patch.object(zotero_llm_bridge, "pdf_words_by_page", lambda pdf: pages):
+            result = locate_passages(Path("paper.pdf"), [{"text": "same", "page_index": 2, "match_index": 1}])
+        self.assertEqual(result[0]["status"], "exact")
+        self.assertEqual(result[0]["matches"], 2)
+        self.assertEqual(result[0]["rects"], [[30, 70, 35, 80]])
+
+    def test_highlight_is_dry_run_then_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdf = root / "paper.pdf"
+            pdf.write_bytes(b"%PDF-1.4\n")
+            manifest = root / "passages.json"
+            manifest.write_text(json.dumps({"attachment": "EFGH5678", "source": "index.qmd",
+                                            "passages": [{"id": "q1", "text": "Quoted words", "page": "1"}]}))
+            attachment = {"key": "EFGH5678", "data": {"itemType": "attachment", "contentType": "application/pdf"},
+                          "links": {"enclosure": {"href": pdf.as_uri()}}}
+            stored, posts = {}, []
+            api = Zotero()
+            api.item = lambda key: attachment if key == "EFGH5678" else stored[key]
+            api.request = lambda method, path: (200, {"Total-Results": str(len(stored))}, list(stored.values()))
+            def post(path, body, content_type, extra=None):
+                batch = json.loads(body)
+                posts.append(batch)
+                success = {}
+                for i, data in enumerate(batch):
+                    key = f"A{i:07d}"
+                    stored[key] = {"key": key, "data": data}
+                    success[str(i)] = key
+                return {"success": success, "failed": {}}
+            api.post = post
+            located = [{"id": "q1", "status": "exact", "matches": 1, "pageIndex": 0, "pageLabel": "1",
+                        "text": "Quoted words", "rects": [[10, 70, 75, 80]]}]
+            with patch.object(zotero_llm_bridge, "locate_passages", lambda pdf, passages: located):
+                preview = highlight_passages(api, manifest, None, "gray", "zlb-citazione", False)
+                first = highlight_passages(api, manifest, None, "gray", "zlb-citazione", True)
+                second = highlight_passages(api, manifest, None, "gray", "zlb-citazione", True)
+            self.assertEqual(preview["counts"]["exact"], 1)
+            self.assertEqual(first["counts"]["created"], 1)
+            self.assertEqual(second["counts"]["created"], 0)
+            self.assertEqual(second["counts"]["skipped_existing"], 1)
+            self.assertEqual(posts[0][0]["annotationColor"], "#aaaaaa")
+
     def test_text_windows_case_sensitive_terms_and_merge(self):
         text = "epic tale. The think tank EPIC said. " + "x " * 400 + "European Policy Innovation Council"
         snippets, count = text_windows(text, ["EPIC", "Epic"], ["european policy innovation council"], width=20)
