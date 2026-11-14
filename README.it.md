@@ -231,7 +231,48 @@ Il flusso di ricerca può combinare i due livelli: prima restringere per raccolt
 
 Il PDF originale resta sul disco. Prima di creare un allegato, `upload` controlla l'MD5 degli allegati PDF **nell'intera libreria** tramite un indice locale ricavato dall'API Zotero e conferma il candidato confrontando SHA-256 con il file nello storage. Se il PDF esiste già, aggiunge la scheda alla raccolta richiesta e restituisce `already_present` o `added_existing_pdf`, senza duplicare il file né cambiare titolo o tag. Se è indicato `--parent-item` ma la copia identica appartiene a un'altra scheda, si ferma e segnala le due chiavi. La prima costruzione dell'indice può richiedere alcuni minuti in una libreria grande; dopo, il CLI usa la versione della libreria per aggiornare solo gli allegati modificati. La cache `.zlb-attachment-index.json` resta locale ed è esclusa da Git.
 
+### Citation key = key8 (dal 14 novembre 2026)
+
+Quando `upload` o `apply` mettono un PDF sotto una scheda bibliografica (o lo trovano già lì), `zlb` imposta la **citation key** della scheda in Zotero alla key8 del PDF, cioè la chiave della cartella in `storage/KEY8/file.pdf`.
+L'export BibTeX di Zotero usa così la key8 come citation key, e la stessa fonte ha la stessa chiave in ogni progetto.
+I PDF senza scheda non hanno il campo citation key in Zotero: la loro chiave BibTeX è la key8 stessa.
+Con `--keep-citekey` la citation key resta invariata.
+
+```bash
+./zlb citekey KEY8 [KEY8 ...] [--keep]                       # su item esistenti (chiave del PDF o della scheda)
+./zlb citekey-all                                           # una tantum, tutta la libreria: prova a vuoto con i conteggi
+./zlb citekey-all --apply --backup citekeys_prima.csv      # scrive; le chiavi precedenti sono salvate prima, poi verificate
+```
+
+Le schede con più di un PDF sono saltate.
+Nel BibTeX `key8` è la chiave del PDF (il percorso) e `zotero_item` quella della scheda, se diversa.
+
 Il limite di upload è 100 MB per file. Zotero assegna le chiavi a otto caratteri. `zlb` non avvia né corregge i metadati: il loro recupero e controllo si svolgono direttamente in Zotero.
+
+### Tag esistenti sui nuovi import
+
+I nuovi PDF importati con `upload` e `apply` ricevono automaticamente **fino a 10 tag pertinenti già presenti in Zotero**.
+Il CLI legge il vocabolario tramite API locale, ordina i candidati in base al testo e al titolo e chiede a Ollama locale di selezionarne gli identificativi.
+Non accetta nomi inventati; anche i valori espliciti di `upload --tag` devono già esistere nella libreria.
+I PDF riutilizzati dalla deduplicazione conservano i tag presenti.
+I tag vengono applicati al nuovo allegato PDF, anche quando collegato a una scheda bibliografica.
+
+```bash
+zlb upload --file paper.pdf --collection "Nuova raccolta"              # fino a 10 tag esistenti
+zlb upload --file paper.pdf --collection "Nuova raccolta" --tag-count 5
+zlb apply --manifest references.json --collection "Nuova raccolta" --tag-count 10
+zlb upload --file paper.pdf --collection "Nuova raccolta" --tag-count 0  # disattiva i tag automatici
+```
+
+`--tag-count` limita i tag automatici; quelli espliciti già esistenti sono aggiuntivi, senza doppioni.
+Se i tag pertinenti sono meno, ne vengono applicati meno; con vocabolario vuoto non se ne applicano.
+Servono `pdftotext` di Poppler e Ollama locale; il modello si sceglie con `--tag-model` o `ZLB_TAG_MODEL` (altrimenti viene usato quello di `screen`).
+Sono ammessi solo endpoint HTTP locali per Ollama.
+PDF senza testo estraibile ed errori del modello fermano l’importazione prima della creazione dell’allegato: eseguire OCR, riprovare oppure disattivare esplicitamente i tag automatici.
+Il risultato JSON riporta i tag applicati, verificati tramite API.
+
+La preselezione usa la sovrapposizione lessicale sul testo completo; il modello sceglie fra massimo 160 candidati leggendo estratti distribuiti nel PDF.
+Può non recuperare sinonimi o tag in un’altra lingua esclusi dalla preselezione; il numero richiesto è un massimo, non una garanzia di qualità.
 
 ### Evidenziare nel PDF i passaggi citati
 

@@ -231,7 +231,44 @@ The search flow can combine the two levels: first narrow by collection, tag, typ
 
 The original PDF stays on disk. Before creating an attachment, `upload` checks the MD5 of PDF attachments **across the whole library** through a local index built from the Zotero API, and confirms the candidate by comparing SHA-256 with the file in storage. If the PDF already exists, it adds the item to the requested collection and returns `already_present` or `added_existing_pdf`, without duplicating the file or changing title or tags. If `--parent-item` is given but the identical copy belongs to another item, it stops and reports both keys. Building the index the first time can take a few minutes in a large library; afterwards the CLI uses the library version to refresh only modified attachments. The `.zlb-attachment-index.json` cache stays local and is excluded from Git.
 
+### Citation key = key8 (since 14 November 2026)
+
+When `upload` or `apply` puts a PDF under a bibliographic item (or finds it already there), `zlb` sets that item's Zotero **citation key** to the PDF's key8, i.e. the storage folder key (`storage/KEY8/file.pdf`). Zotero's BibTeX export then uses the key8 as citation key, so the same source has the same key in every project. Standalone PDFs have no citation-key field in Zotero: their BibTeX key is the key8 itself. Use `--keep-citekey` to leave the citation key unchanged.
+
+```bash
+./zlb citekey KEY8 [KEY8 ...] [--keep]                       # set it on existing items (PDF or parent keys)
+./zlb citekey-all                                           # one-off, whole library: dry run with counts
+./zlb citekey-all --apply --backup citekeys_before.csv     # write; previous keys saved first, then verified
+```
+
+Parents with more than one PDF are skipped. In BibTeX, `key8` is the PDF key (the path) and `zotero_item` the parent item key when different.
+
 The upload limit is 100 MB per file. Zotero assigns the eight-character keys. `zlb` does not trigger or fix metadata retrieval: that is done directly in Zotero.
+
+### Existing tags on new imports
+
+New PDFs imported by `upload` and `apply` automatically receive **up to 10 relevant tags already present in Zotero**.
+The CLI reads the library vocabulary through the local API, ranks candidates against the PDF text and title, and asks a local Ollama model to select candidate IDs.
+It never accepts invented tag names; explicit `upload --tag` values must also exist in the library.
+Existing PDFs reused by deduplication keep their tags.
+Tags are stored on the new PDF attachment, including when it has a bibliographic parent.
+
+```bash
+zlb upload --file paper.pdf --collection "New collection"              # up to 10 existing tags
+zlb upload --file paper.pdf --collection "New collection" --tag-count 5
+zlb apply --manifest references.json --collection "New collection" --tag-count 10
+zlb upload --file paper.pdf --collection "New collection" --tag-count 0  # disable automatic tags
+```
+
+`--tag-count` controls automatic tags; explicitly supplied existing tags are additional and deduplicated.
+Fewer tags are used when fewer are relevant, and an empty vocabulary produces no automatic tags.
+Classification requires Poppler's `pdftotext` and a local Ollama; choose the model with `--tag-model` or `ZLB_TAG_MODEL` (otherwise the `screen` model is used).
+Only local HTTP Ollama endpoints are accepted.
+Unreadable/scanned PDFs and model failures stop before creating an attachment; OCR the PDF, retry, or explicitly disable automatic tags.
+The JSON result reports the applied tags and verifies them through the API.
+
+Candidate ranking uses lexical overlap over the whole text, followed by local model selection from at most 160 candidates and excerpts spread over the PDF.
+Tags absent from this shortlist, including synonyms in another language, may be missed; the suggested count is a maximum, not a quality guarantee.
 
 ### Highlight quoted passages in the PDF
 

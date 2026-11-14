@@ -48,6 +48,10 @@ class FakeAPI:
         self.membership_changes.append((keys, target))
         self.external["data"]["collections"] = ["ZXCV9876"]
 
+    def _citekey_safe(self, key):
+        self.citekey_calls = getattr(self, "citekey_calls", []) + [key]
+        return {"item": key, "status": "set"}
+
 
 class CLITests(unittest.TestCase):
     def test_locate_passages_builds_bottom_origin_rects(self):
@@ -249,7 +253,7 @@ class CLITests(unittest.TestCase):
             api.get = lambda path: "\n\n"
             bib, report = export_collection_bib(api, "PolicyIA")
             self.assertEqual(report["total"], 1)
-            self.assertIn("@misc{zoteroABCD1234,", bib)
+            self.assertIn("@misc{ABCD1234,", bib)
             self.assertIn(str(pdf), bib)
             self.assertIn("key8", bib)
 
@@ -327,6 +331,10 @@ class CLITests(unittest.TestCase):
             result = apply_references(api, manifest, "New collection", None)
             self.assertEqual(result["results"][0]["status"], "added")
             self.assertEqual(api.membership_changes, [(["ABCD1234"], "ZXCV9876")])
+            self.assertEqual(api.citekey_calls, ["ABCD1234"])
+            self.assertEqual(result["results"][0]["citekey"]["status"], "set")
+            result = apply_references(api, manifest, "New collection", None, citekey=False)
+            self.assertNotIn("citekey", result["results"][0])
 
     def test_bib_places_missing_before_existing(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -344,8 +352,51 @@ class CLITests(unittest.TestCase):
             content = output.read_text()
             self.assertEqual(result["missing"], ["2"])
             self.assertLess(content.index("@misc{missing"), content.index("@misc{existing"))
-            self.assertIn("key8        = {ABCD1234}", content)
+            self.assertIn("key8        = {EFGH5678}", content)
+            self.assertIn("zotero_item = {ABCD1234}", content)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CitekeyTests(unittest.TestCase):
+    def make(self, items):
+        api = Zotero()
+        api.item = lambda key: items[key]
+        api.pdf_children = lambda item: [x for x in items.values()
+                                         if x["data"].get("parentItem") == item["key"]
+                                         and x["data"].get("contentType") == "application/pdf"]
+        writes = []
+        def post(path, body, content_type, extra=None):
+            for upd in json.loads(body):
+                writes.append(upd)
+                items[upd["key"]]["data"]["citationKey"] = upd["citationKey"]
+            return {"success": {"0": "ok"}}
+        api.post = post
+        return api, writes
+
+    def items(self, ck="Moda"):
+        return {"PARENT01": {"key": "PARENT01", "data": {"itemType": "document", "version": 3, "citationKey": ck}},
+                "PDFKEY01": {"key": "PDFKEY01", "data": {"itemType": "attachment", "parentItem": "PARENT01",
+                                                          "contentType": "application/pdf"}},
+                "ALONE001": {"key": "ALONE001", "data": {"itemType": "attachment", "contentType": "application/pdf"}}}
+
+    def test_sets_parent_citekey_from_attachment_or_parent(self):
+        for start in ("PDFKEY01", "PARENT01"):
+            api, writes = self.make(self.items())
+            result = api.citekey_to_key8(start)
+            self.assertEqual(result["status"], "set")
+            self.assertEqual(result["previous"], "Moda")
+            self.assertEqual(writes, [{"key": "PARENT01", "version": 3, "citationKey": "PDFKEY01"}])
+
+    def test_idempotent_keep_standalone_and_missing_field(self):
+        api, writes = self.make(self.items(ck="PDFKEY01"))
+        self.assertEqual(api.citekey_to_key8("PARENT01")["status"], "already_key8")
+        api, writes = self.make(self.items())
+        self.assertEqual(api.citekey_to_key8("PARENT01", replace=False)["status"], "kept")
+        self.assertEqual(api.citekey_to_key8("ALONE001")["status"], "standalone")
+        items = self.items(); del items["PARENT01"]["data"]["citationKey"]
+        api, writes = self.make(items)
+        self.assertEqual(api.citekey_to_key8("PARENT01")["status"], "no_citationkey_field")
+        self.assertEqual(writes, [])
