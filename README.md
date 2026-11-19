@@ -2,6 +2,8 @@
 
 *English · [Italiano](README.it.md)*
 
+![zlb and ZotPush: Zotero ↔ LLM bridge and Zotero → Markdown export](assets/zlb-zotpush-landscape.png)
+
 [![Release](https://img.shields.io/github/v/release/paolovolterra/zotero-llm-bridge)](https://github.com/paolovolterra/zotero-llm-bridge/releases/latest)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22900666.svg)](https://doi.org/10.5281/zenodo.22900666)
 ![Zotero 10](https://img.shields.io/badge/Zotero-10-cc2936)
