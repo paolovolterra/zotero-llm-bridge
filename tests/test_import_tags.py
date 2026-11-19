@@ -78,7 +78,7 @@ class ImportTagTests(unittest.TestCase):
                 return {'exists': True}
             api.post = post
             with patch.object(z, 'select_import_tags', return_value=['PMI']) as select:
-                result = api.upload_pdf(pdf, 'collection', tags=['credito'])
+                result = api.upload_pdf(pdf, 'collection', tags=['credito'], tag_count=10)
                 self.assertEqual(select.call_args.args[3], 10)
             self.assertEqual(result['tags'], ['credito', 'PMI'])
             self.assertEqual(writes[0]['tags'], [{'tag': 'credito'}, {'tag': 'PMI'}])

@@ -11,26 +11,21 @@
 
 A local CLI for Zotero 10, usable from the terminal, from scripts and by LLM agents on Linux, macOS and Windows. The short command is `zlb`. It talks to `http://localhost:23119/api/` while Zotero is open. All writes go through the local API; it never modifies the SQLite databases and does not use zotero.org.
 
-## What's new in 0.2.0
+## What's new in 0.3.0
 
 > [!NOTE]
-> Version 0.2.0, released 2026-11-02, verified live with **Zotero 10.0.7** on Linux. Archived on Zenodo: [10.5281/zenodo.23875898](https://doi.org/10.5281/zenodo.23875898). Full notes in the [release](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.2.0).
+> Version 0.3.0, released 2026-11-19 ([release notes](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.3.0)). The Zenodo archive of 0.3.0 is pending; the concept DOI [10.5281/zenodo.22900666](https://doi.org/10.5281/zenodo.22900666) resolves to the latest archived version.
 
-| Command | What it does | Writes to Zotero? |
+| Change | What it does | Writes to Zotero? |
 |---|---|---|
-| [`highlight`](#highlight-quoted-passages-in-the-pdf) | Finds the quoted sentences declared in a manifest inside a PDF attachment and creates native Zotero highlight annotations, gray by default | Only with `--apply`, after a dry-run in which every passage is unique |
-| [`screen`](#full-text-search-filtered-by-a-local-llm-and-two-judge-comparison) | Filters full-text search results with a local Ollama model (`localhost` only), discarding homonyms; recall-oriented, `--strict` for precision | Only with `--tag` |
-| [`compare`](#full-text-search-filtered-by-a-local-llm-and-two-judge-comparison) | Compares `screen` verdicts with those of a blind second judge and reports agreement and disagreements | No |
-| [`tag`](#existing-collections-and-items) / [`untag`](#existing-collections-and-items) | Adds or removes named tags on items or attachments, leaving other tags untouched; writes in batches of 50 | Yes |
+| [Citation key = key8](#citation-key--key8) | `upload` and `apply` set the parent item's citation key to the PDF key8; new `citekey` and `citekey-all` commands for existing items | Yes; `--keep-citekey` / `--keep` to skip; `citekey-all` is a dry run unless `--apply --backup` |
+| [Automatic existing tags](#existing-tags-on-new-imports) | A local Ollama model picks up to N tags **already in the library** for each new PDF | **Opt-in**: off by default; `--tag-count N`, `ZLB_TAG_COUNT` or `config.json` |
+| BibTeX keys | `key8` is now the PDF key (the storage path); `zotero_item` is the parent; standalone PDFs use the key8 as BibTeX key (was `zoteroKEY8`) | No |
 
-```bash
-zlb highlight --manifest passages.json            # dry-run: exact / ambiguous / not-found
-zlb highlight --manifest passages.json --apply    # create the highlights
-zlb screen --q "Epic Draghi" --about "the Brussels think tank EPIC" --term EPIC --output screen.json
-zlb tag --tag EPIC ABCD1234 && zlb untag --tag EPIC ABCD1234
-```
+> [!IMPORTANT]
+> Two behaviour changes from 0.2.0: BibTeX keys of standalone PDFs change from `zoteroKEY8` to `KEY8`, and explicit `upload --tag` values must already exist in the library.
 
-The principles are unchanged: no deletions, no SQLite writes, local API only.
+The principles are unchanged: no deletions, no SQLite writes, local API only. Version 0.2.0 added `highlight`, `screen`, `compare`, `tag` and `untag` ([release](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.2.0)).
 
 ## From an LLM request to a Zotero collection
 
@@ -82,7 +77,7 @@ The code is released under the [0BSD](LICENSE) license: you may use, copy, modif
 
 Version 0.2.0 is archived on [Zenodo](https://doi.org/10.5281/zenodo.23875898) with DOI `10.5281/zenodo.23875898`; the concept DOI [`10.5281/zenodo.22900666`](https://doi.org/10.5281/zenodo.22900666) always resolves to the latest version. Version 0.1.0 remains available with DOI `10.5281/zenodo.22900667`. The GitHub repository holds the code and later updates; the version DOI identifies the published snapshot. Citation metadata for GitHub are in [CITATION.cff](CITATION.cff).
 
-Version 0.2.0 adds `tag`, `untag`, `screen`, `compare` and `highlight` and was verified live on Linux with Zotero 10.0.7.
+Version 0.2.0 adds `tag`, `untag`, `screen`, `compare` and `highlight` and was verified live on Linux with Zotero 10.0.7. Version 0.3.0 (citation key = key8, opt-in automatic tags) is on GitHub; its Zenodo archive is pending.
 
 SHA-256 of the ZIP `zotero-llm-bridge-v0.2.0.zip` downloaded from Zenodo:
 
@@ -233,7 +228,7 @@ The search flow can combine the two levels: first narrow by collection, tag, typ
 
 The original PDF stays on disk. Before creating an attachment, `upload` checks the MD5 of PDF attachments **across the whole library** through a local index built from the Zotero API, and confirms the candidate by comparing SHA-256 with the file in storage. If the PDF already exists, it adds the item to the requested collection and returns `already_present` or `added_existing_pdf`, without duplicating the file or changing title or tags. If `--parent-item` is given but the identical copy belongs to another item, it stops and reports both keys. Building the index the first time can take a few minutes in a large library; afterwards the CLI uses the library version to refresh only modified attachments. The `.zlb-attachment-index.json` cache stays local and is excluded from Git.
 
-### Citation key = key8 (since 14 November 2026)
+### Citation key = key8
 
 When `upload` or `apply` puts a PDF under a bibliographic item (or finds it already there), `zlb` sets that item's Zotero **citation key** to the PDF's key8, i.e. the storage folder key (`storage/KEY8/file.pdf`). Zotero's BibTeX export then uses the key8 as citation key, so the same source has the same key in every project. Standalone PDFs have no citation-key field in Zotero: their BibTeX key is the key8 itself. Use `--keep-citekey` to leave the citation key unchanged.
 
@@ -249,24 +244,32 @@ The upload limit is 100 MB per file. Zotero assigns the eight-character keys. `z
 
 ### Existing tags on new imports
 
-New PDFs imported by `upload` and `apply` automatically receive **up to 10 relevant tags already present in Zotero**.
+Automatic tags are **off by default**, because they need a local Ollama model. When enabled, new PDFs imported by `upload` and `apply` receive **up to N relevant tags already present in Zotero**.
 The CLI reads the library vocabulary through the local API, ranks candidates against the PDF text and title, and asks a local Ollama model to select candidate IDs.
 It never accepts invented tag names; explicit `upload --tag` values must also exist in the library.
 Existing PDFs reused by deduplication keep their tags.
 Tags are stored on the new PDF attachment, including when it has a bibliographic parent.
 
 ```bash
-zlb upload --file paper.pdf --collection "New collection"              # up to 10 existing tags
+zlb upload --file paper.pdf --collection "New collection"              # no automatic tags (default)
 zlb upload --file paper.pdf --collection "New collection" --tag-count 5
 zlb apply --manifest references.json --collection "New collection" --tag-count 10
-zlb upload --file paper.pdf --collection "New collection" --tag-count 0  # disable automatic tags
+zlb upload --file paper.pdf --collection "New collection" --tag-count 0  # force off for one command
 ```
+
+To enable them by default, set `ZLB_TAG_COUNT=10` or create `config.json` in the same folder as the authorization cache (`~/.config/zotero_llm_bridge/` on Linux/macOS, `%APPDATA%\\zotero_llm_bridge\\` on Windows; another path via `ZLB_CONFIG_FILE`):
+
+```json
+{"tag_count": 10}
+```
+
+Order of precedence: `--tag-count`, then `ZLB_TAG_COUNT`, then `config.json`, else 0.
 
 `--tag-count` controls automatic tags; explicitly supplied existing tags are additional and deduplicated.
 Fewer tags are used when fewer are relevant, and an empty vocabulary produces no automatic tags.
 Classification requires Poppler's `pdftotext` and a local Ollama; choose the model with `--tag-model` or `ZLB_TAG_MODEL` (otherwise the `screen` model is used).
 Only local HTTP Ollama endpoints are accepted.
-Unreadable/scanned PDFs and model failures stop before creating an attachment; OCR the PDF, retry, or explicitly disable automatic tags.
+When automatic tags are enabled, unreadable/scanned PDFs and model failures stop before creating an attachment; OCR the PDF, retry, or use `--tag-count 0`.
 The JSON result reports the applied tags and verifies them through the API.
 
 Candidate ranking uses lexical overlap over the whole text, followed by local model selection from at most 160 candidates and excerpts spread over the PDF.

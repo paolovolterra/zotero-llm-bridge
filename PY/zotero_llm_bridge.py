@@ -31,11 +31,41 @@ def default_auth_file():
     shared_cache = Path(__file__).resolve().parent.parent / ".zotero-local-auth.json"
     if shared_cache.exists():
         return shared_cache
+    return user_config_dir() / "auth.json"
+
+
+def user_config_dir():
     if os.name == "nt":
-        config_dir = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:
-        config_dir = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    return config_dir / "zotero_llm_bridge" / "auth.json"
+        base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return base / "zotero_llm_bridge"
+
+
+def default_tag_count():
+    """Automatic import tags are off unless the user opts in.
+
+    Order: env ZLB_TAG_COUNT, then "tag_count" in config.json (env ZLB_CONFIG_FILE or the user
+    config directory), else 0. Automatic tags need a local Ollama model, so they are opt-in.
+    """
+    value = os.environ.get("ZLB_TAG_COUNT", "").strip()
+    source = "ZLB_TAG_COUNT"
+    if not value:
+        path = Path(os.environ.get("ZLB_CONFIG_FILE") or user_config_dir() / "config.json").expanduser()
+        if not path.is_file():
+            return 0
+        try:
+            value = json.loads(path.read_text(encoding="utf-8")).get("tag_count", 0)
+        except (OSError, ValueError, AttributeError) as exc:
+            raise ZoteroError(f"Cannot read {path}: {exc}") from exc
+        source = str(path)
+    try:
+        count = int(value)
+    except (TypeError, ValueError):
+        raise ZoteroError(f"tag_count from {source} must be an integer, got {value!r}") from None
+    if count < 0:
+        raise ZoteroError(f"tag_count from {source} must be non-negative")
+    return count
 
 
 AUTH_FILE = default_auth_file()
@@ -553,7 +583,7 @@ class Zotero:
             return {"item": key, "status": "error", "detail": str(exc)}
 
     def upload_pdf(self, path: Path, collection: str, title: str | None = None, tags: list[str] | None = None, parent_key: str | None = None,
-                   tag_count: int = 10, tag_model: str | None = None, citekey: bool = True):
+                   tag_count: int = 0, tag_model: str | None = None, citekey: bool = True):
         collection_key = self.resolve_collection(collection)["key"]
         path = path.resolve()
         if not path.is_file() or path.suffix.lower() != ".pdf":
@@ -1054,7 +1084,7 @@ def export_collection_bib(api: Zotero, collection: str):
     return "\n\n".join(entries) + ("\n" if entries else ""), {"collection": collection_key, "total": len(entries), "skipped_notes": skipped}
 
 
-def apply_references(api: Zotero, path: Path, collection: str, output: Path | None, tag_count: int = 10, tag_model: str | None = None,
+def apply_references(api: Zotero, path: Path, collection: str, output: Path | None, tag_count: int = 0, tag_model: str | None = None,
                      citekey: bool = True):
     manifest = read_manifest(path)
     collection_key = api.resolve_collection(collection)["key"]
@@ -1368,8 +1398,9 @@ def main(argv=None):
     apply.add_argument("--collection", required=True)
     apply.add_argument("--output", type=Path)
     for command in (upload, apply):
-        command.add_argument("--tag-count", type=int, default=10,
-                             help="Maximum automatic existing tags on new PDFs (default 10; 0 disables)")
+        command.add_argument("--tag-count", type=int, default=None,
+                             help="Maximum automatic existing tags on new PDFs; needs local Ollama "
+                                  "(default 0 = off, or ZLB_TAG_COUNT / tag_count in config.json)")
         command.add_argument("--tag-model", help="Local Ollama model (env ZLB_TAG_MODEL or screen default)")
         command.add_argument("--keep-citekey", action="store_true",
                              help="Do not set the parent's Zotero citationKey to the PDF key8 (default: set it)")
@@ -1383,6 +1414,11 @@ def main(argv=None):
     citekey_all.add_argument("--plan", type=Path, help="Save the planned updates to JSON (dry run)")
     citekey_all.add_argument("--from-plan", type=Path, help="Apply a saved plan instead of rescanning the library")
     args = parser.parse_args(expand_shortcut(sys.argv[1:] if argv is None else argv))
+    if hasattr(args, "tag_count") and args.tag_count is None:
+        try:
+            args.tag_count = default_tag_count()
+        except ZoteroError as exc:
+            parser.error(str(exc))
     if getattr(args, "tag_count", 0) < 0:
         parser.error("--tag-count must be non-negative")
     api = Zotero()
