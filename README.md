@@ -14,7 +14,7 @@ A local CLI for Zotero 10, usable from the terminal, from scripts and by LLM age
 ## What's new in 0.3.0
 
 > [!NOTE]
-> Version 0.3.0, released 2026-11-19 ([release notes](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.3.0)). The Zenodo archive of 0.3.0 is pending; the concept DOI [10.5281/zenodo.22900666](https://doi.org/10.5281/zenodo.22900666) resolves to the latest archived version.
+> Version 0.3.0, released 2026-11-19 ([release notes](https://github.com/paolovolterra/zotero-llm-bridge/releases/tag/v0.3.0)). Archived on Zenodo: [10.5281/zenodo.24374740](https://doi.org/10.5281/zenodo.24374740).
 
 | Change | What it does | Writes to Zotero? |
 |---|---|---|
@@ -75,17 +75,17 @@ The code is released under the [0BSD](LICENSE) license: you may use, copy, modif
 
 ## Citation and archive
 
-Version 0.2.0 is archived on [Zenodo](https://doi.org/10.5281/zenodo.23875898) with DOI `10.5281/zenodo.23875898`; the concept DOI [`10.5281/zenodo.22900666`](https://doi.org/10.5281/zenodo.22900666) always resolves to the latest version. Version 0.1.0 remains available with DOI `10.5281/zenodo.22900667`. The GitHub repository holds the code and later updates; the version DOI identifies the published snapshot. Citation metadata for GitHub are in [CITATION.cff](CITATION.cff).
+Version 0.3.0 is archived on [Zenodo](https://doi.org/10.5281/zenodo.24374740) with DOI `10.5281/zenodo.24374740`; the concept DOI [`10.5281/zenodo.22900666`](https://doi.org/10.5281/zenodo.22900666) always resolves to the latest version. Versions 0.2.0 (`10.5281/zenodo.23875898`) and 0.1.0 (`10.5281/zenodo.22900667`) remain available. The GitHub repository holds the code and later updates; the version DOI identifies the published snapshot. Citation metadata for GitHub are in [CITATION.cff](CITATION.cff).
 
-Version 0.2.0 adds `tag`, `untag`, `screen`, `compare` and `highlight` and was verified live on Linux with Zotero 10.0.7. Version 0.3.0 (citation key = key8, opt-in automatic tags) is on GitHub; its Zenodo archive is pending.
+Version 0.2.0 adds `tag`, `untag`, `screen`, `compare` and `highlight` and was verified live on Linux with Zotero 10.0.7. Version 0.3.0 adds citation key = key8, the `citekey` commands and opt-in automatic tags.
 
-SHA-256 of the ZIP `zotero-llm-bridge-v0.2.0.zip` downloaded from Zenodo:
+SHA-256 of the ZIP `zotero-llm-bridge-v0.3.0.zip` downloaded from Zenodo:
 
 ```text
-6fa3834a096e121718ec934b78b3539d5edf7bb190f59ea5fc82b39efda1fd55
+6bd26cb460c6e0a7ebe9b92a73ca8bd9471dbf6b3292b87305793f95c700eea0
 ```
 
-Check it with `sha256sum zotero-llm-bridge-v0.2.0.zip` on Linux, `shasum -a 256 zotero-llm-bridge-v0.2.0.zip` on macOS or `Get-FileHash .\zotero-llm-bridge-v0.2.0.zip -Algorithm SHA256` in PowerShell. The hash refers to the Zenodo ZIP, not to the code updated later on GitHub.
+Check it with `sha256sum zotero-llm-bridge-v0.3.0.zip` on Linux, `shasum -a 256 zotero-llm-bridge-v0.3.0.zip` on macOS or `Get-FileHash .\zotero-llm-bridge-v0.3.0.zip -Algorithm SHA256` in PowerShell. The hash refers to the Zenodo ZIP, not to the code updated later on GitHub.
 
 ## Installation
 
@@ -119,7 +119,7 @@ If `zlb` is not recognised, add the `Scripts` directory of your user Python inst
 
 ### From a code archive
 
-If you have the code ZIP, extract it and open a terminal in the `zotero-llm-bridge-v0.2.0` folder. On Linux/macOS run `./zlb status`; on Windows run `py -3 PY\zotero_llm_bridge.py status` or `py -3 -m pip install --user .` and then `zlb status`. The archive contains a self-contained copy of the CLI.
+If you have the code ZIP, extract it and open a terminal in the `zotero-llm-bridge-v0.3.0` folder. On Linux/macOS run `./zlb status`; on Windows run `py -3 PY\zotero_llm_bridge.py status` or `py -3 -m pip install --user .` and then `zlb status`. The archive contains a self-contained copy of the CLI.
 
 ## Usage model
 
